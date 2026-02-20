@@ -3,17 +3,35 @@ package com.example.medjadya.model
 import com.google.gson.annotations.SerializedName
 
 data class Medication(
-    @SerializedName("idmed") val id: Int,
-    val name: String,
-    val form: String,
-    @SerializedName("amount") val dosage: String?, // Map instruction.amount to dosage
-    @SerializedName("remain") val remainingCount: Int?, // Map instruction.remain
-    val schedules: List<Schedule> = emptyList()
+    @SerializedName("idmed") val id: Int?,
+    val name: String?,
+    val form: String?,
+    
+    // ข้อมูลจากตาราง instruction
+    val instruction: Instruction?,
+    
+    // ข้อมูลจากตาราง Schedules (ใช้ @SerializedName เพื่อความแม่นยำ)
+    @SerializedName("schedules", alternate = ["Schedules"]) 
+    val schedules: List<Schedule>? = emptyList()
+) {
+    val dosage: String?
+        get() = instruction?.amount
+    
+    val remainingCount: Int?
+        get() = instruction?.remain
+}
+
+data class Instruction(
+    val idinstruction: Int?,
+    val amount: String?,
+    val instructions: String?,
+    val quantity: Int?,
+    val remain: Int?
 )
 
 data class Schedule(
-    val idSchedules: Int,
-    val time: String, // e.g., "08:00:00"
-    val type: String,
-    val day: String
+    @SerializedName("idSchedules") val idSchedules: Int?,
+    @SerializedName("time") val time: String?, // เช่น "08:00:00"
+    @SerializedName("type") val type: String?, // เช่น "daily"
+    @SerializedName("day") val day: String?    // เช่น "everyday"
 )

@@ -1,5 +1,6 @@
 package com.example.medjadya.ui
 
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -18,26 +19,42 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.medjadya.model.Medication
 import com.example.medjadya.network.RetrofitClient
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 
 @Composable
 fun MedicationScreen() {
     var searchQuery by remember { mutableStateOf("") }
     var medications by remember { mutableStateOf<List<Medication>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
-    val scope = rememberCoroutineScope()
 
-    // Fetch data from database
     LaunchedEffect(Unit) {
-        scope.launch {
-            try {
-                // In a real app, this should be in a ViewModel
-                medications = RetrofitClient.instance.getMedications()
-            } catch (e: Exception) {
-                // Handle error
-            } finally {
-                isLoading = false
+        try {
+            val token =
+                "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJzdGFtcEBlbWFpbC5jb20iLCJpYXQiOjE3NzE1NzQ5OTMsImV4cCI6MTc3MTY2MTM5M30.gSTC1j4_xYQtYHEHlZXHFGR77W5y7Z8eGOIbO8fNHrs"
+
+            // 1. Get basic med list
+            val meds = RetrofitClient.instance.getMeds(token)
+
+            // 2. For each med, fetch its specific instructions and schedules in parallel
+            val fullMedications = meds.map { med ->
+                val medId = med.id ?: return@map med
+
+                // Fetch extra details for this specific med ID
+                val instructions = async { RetrofitClient.instance.getInstructions(token, medId) }
+                val schedules = async { RetrofitClient.instance.getSchedules(token, medId) }
+
+                med.copy(
+                    instruction = instructions.await().firstOrNull(),
+                    schedules = schedules.await()
+                )
             }
+
+            medications = fullMedications
+        } catch (e: Exception) {
+            Log.e("MedicationScreen", "Error: ", e)
+        } finally {
+            isLoading = false
         }
     }
 
@@ -45,8 +62,8 @@ fun MedicationScreen() {
         if (searchQuery.isEmpty()) {
             medications
         } else {
-            medications.filter { 
-                it.name.contains(searchQuery, ignoreCase = true) 
+            medications.filter {
+                it.name?.contains(searchQuery, ignoreCase = true) == true
             }
         }
     }
@@ -56,7 +73,6 @@ fun MedicationScreen() {
             .fillMaxSize()
             .background(Color(0xFFF0F7F9))
     ) {
-        // Custom Top Bar
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -75,7 +91,6 @@ fun MedicationScreen() {
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Search Bar
         OutlinedTextField(
             value = searchQuery,
             onValueChange = { searchQuery = it },
@@ -83,7 +98,13 @@ fun MedicationScreen() {
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp),
             placeholder = { Text("ค้นหารายการยา", color = Color.Gray) },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color.Gray) },
+            leadingIcon = {
+                Icon(
+                    Icons.Default.Search,
+                    contentDescription = null,
+                    tint = Color.Gray
+                )
+            },
             shape = RoundedCornerShape(12.dp),
             textStyle = TextStyle(color = Color.Black),
             colors = OutlinedTextFieldDefaults.colors(
@@ -105,7 +126,6 @@ fun MedicationScreen() {
                 CircularProgressIndicator(color = Color(0xFF1E9EBD))
             }
         } else {
-            // Medication List
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(horizontal = 24.dp, vertical = 8.dp),
@@ -132,15 +152,15 @@ fun MedicationCard(medication: Medication) {
                 .padding(16.dp)
                 .fillMaxWidth()
         ) {
-            // Icon based on form
             Box(
                 modifier = Modifier
                     .size(48.dp)
                     .background(Color(0xFFFFF0F0), RoundedCornerShape(8.dp)),
                 contentAlignment = Alignment.Center
             ) {
+                val form = medication.form?.lowercase() ?: ""
                 Text(
-                    text = if (medication.form.lowercase() == "tablet") "💊" else "🧪",
+                    text = if (form == "tablet") "\uD83D\uDD34" else "💊",
                     fontSize = 24.sp
                 )
             }
@@ -154,44 +174,46 @@ fun MedicationCard(medication: Medication) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = medication.name,
+                        text = medication.name ?: "Unknown Medication",
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.Black
                     )
-                    
-                    // Show "Remaining" label if stock > 0
-                    if ((medication.remainingCount ?: 0) > 0) {
-                        Surface(
-                            color = Color(0xFFE8F5E9),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Text(
-                                text = "ยังเหลืออยู่",
-                                color = Color(0xFF4CAF50),
-                                fontSize = 12.sp,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                            )
-                        }
+
+                    val isRemaining = (medication.remainingCount ?: 0) > 0
+                    Surface(
+                        color = if (isRemaining) Color(0xFFE8F5E9) else Color(0xFFFFEBEE),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(
+                            text = if (isRemaining) "ยังเหลืออยู่" else "ยาหมดแล้ว",
+                            color = if (isRemaining) Color(0xFF4CAF50) else Color(0xFFF44336),
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
                     }
                 }
 
                 Text(
-                    text = medication.dosage ?: medication.form,
+                    text = medication.dosage ?: medication.form ?: "",
                     color = Color.Gray,
                     fontSize = 14.sp
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Schedule times
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    medication.schedules.take(3).forEach { schedule ->
-                        // Format time from 08:00:00 to 8:00 น.
-                        val displayTime = schedule.time.substringBeforeLast(":").removePrefix("0") + " น."
+                    medication.schedules?.take(3)?.forEach { schedule ->
+                        val time = schedule.time
+                        val displayTime = if (time != null && time.contains(":")) {
+                            time.substringBeforeLast(":").removePrefix("0") + " น."
+                        } else {
+                            time ?: "--:--"
+                        }
+
                         Surface(
                             color = Color(0xFFDCEBFF),
                             shape = RoundedCornerShape(12.dp)
