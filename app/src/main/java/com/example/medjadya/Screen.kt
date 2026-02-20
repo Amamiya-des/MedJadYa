@@ -1,7 +1,27 @@
 package com.example.medjadya
 
-sealed class Screen(val route: String, val name: String) {
-    data object Login : Screen(route = "login_screen", name = "Login")
-    data object Register : Screen(route = "register_screen", name = "Register")
-    data object Profile : Screen(route = "profile_screen", name = "Profile")
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.ui.graphics.vector.ImageVector
+
+sealed class Screen(val route: String, val title: String, val icon: ImageVector) {
+    // หน้าจอสำหรับ Authentication (ไม่ได้อยู่ใน Bottom Nav)
+    data object Login : Screen("login_screen", "เข้าสู่ระบบ", Icons.Default.Person)
+    data object Register : Screen("register_screen", "สมัครสมาชิก", Icons.Default.Person)
+
+    // หน้าจอหลักใน Bottom Navigation
+    data object Home : Screen("home", "หน้าหลัก", Icons.Default.Home)
+    data object Medicine : Screen("medicine", "ยา", Icons.Default.List)
+    data object Record : Screen("record", "บันทึก", Icons.Default.DateRange)
+    data object Profile : Screen("profile_screen", "โปรไฟล์", Icons.Default.Person)
 }
+
+val bottomNavItems = listOf(
+    Screen.Home,
+    Screen.Medicine,
+    Screen.Record,
+    Screen.Profile
+)
