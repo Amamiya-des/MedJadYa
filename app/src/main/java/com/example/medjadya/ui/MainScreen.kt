@@ -9,14 +9,18 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.example.medjadya.model.MedLog
+import com.example.medjadya.model.Medication
 import com.example.medjadya.navigation.Screen
 import com.example.medjadya.navigation.bottomNavItems
+import com.example.medjadya.viewmodel.MedLogViewModel
 
 @Composable
 fun MainScreen() {
@@ -70,10 +74,13 @@ fun MainScreen() {
             composable(Screen.Medicine.route) { 
                 MedicationScreen() 
             }
-            composable(Screen.Record.route) { 
-                Surface(modifier = Modifier.fillMaxSize()) { 
-                    Text("บันทึก", modifier = Modifier.wrapContentSize()) 
-                }
+            composable(Screen.Record.route) {backStackEntry ->
+                // การเรียก viewModel() ตรงนี้จะทำให้ ViewModel มีอายุเท่ากับหน้านี้
+                val medicationViewModel: MedLogViewModel= viewModel()
+
+                RecordScreen(
+                    viewModel = medicationViewModel
+                )
             }
             composable(Screen.Profile.route) { 
                 Surface(modifier = Modifier.fillMaxSize()) { 
