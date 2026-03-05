@@ -26,7 +26,8 @@ fun LoginScreen(navController: NavHostController, viewModel: StudentViewModel) {
     val context = LocalContext.current
     val sharedPref = SharedPreferencesManager(context)
 
-    var email by rememberSaveable { mutableStateOf(sharedPref.getSavedStdId()) } // Reuse for email
+    // แก้ไข: ให้ email เริ่มต้นเป็นค่าว่างเสมอ (ไม่ดึงจาก SharedPreferences)
+    var email by rememberSaveable { mutableStateOf("") } 
     var password by rememberSaveable { mutableStateOf("") }
     val loginResult = viewModel.loginResult
 
@@ -35,8 +36,8 @@ fun LoginScreen(navController: NavHostController, viewModel: StudentViewModel) {
             if (!it.error) {
                 sharedPref.saveLoginStatus(
                     isLoggedIn = true,
-                    stdId = it.idUser.toString(), // Save idUser instead
-                    role = it.name ?: "" // Save name in 'role' field as example
+                    stdId = it.idUser.toString(), // เก็บ idUser ไว้ใช้ในหน้า Profile
+                    role = it.name ?: ""
                 )
                 viewModel.resetLoginResult()
                 Toast.makeText(context, "Login Successful", Toast.LENGTH_SHORT).show()

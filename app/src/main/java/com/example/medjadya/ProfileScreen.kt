@@ -130,34 +130,34 @@ fun ProfileScreen(navController: NavHostController, viewModel: StudentViewModel)
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 8.dp),
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(20.dp), // ปรับให้โค้งมนมากขึ้นเล็กน้อย
                 colors = CardDefaults.cardColors(containerColor = Color.White),
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
                 Row(
                     modifier = Modifier
-                        .padding(16.dp)
+                        .padding(20.dp) // เพิ่ม padding ภายในการ์ด
                         .fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Profile Image
+                    // Profile Image - ปรับขนาดเป็น 100.dp
                     Image(
                         painter = painterResource(id = R.drawable.profile),
                         contentDescription = "Profile Picture",
                         modifier = Modifier
-                            .size(80.dp)
+                            .size(100.dp)
                             .clip(RoundedCornerShape(16.dp)),
                         contentScale = ContentScale.Crop
                     )
-                    Spacer(modifier = Modifier.width(16.dp))
+                    Spacer(modifier = Modifier.width(20.dp))
                     Column {
-                        // เปลี่ยนการดึงข้อมูลตามโครงสร้างใหม่ profileResponse.data
                         profileResponse?.data?.let { user ->
                             Text(
                                 text = user.name ?: "ไม่ทราบชื่อ",
-                                fontSize = 20.sp,
+                                fontSize = 22.sp, // ปรับขนาดฟอนต์ชื่อให้ใหญ่ขึ้น
                                 fontWeight = FontWeight.Bold
                             )
+                            Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = user.email ?: "ไม่ทราบอีเมล",
                                 fontSize = 16.sp,
@@ -228,17 +228,6 @@ fun ProfileScreen(navController: NavHostController, viewModel: StudentViewModel)
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
                 Column {
-                    SettingsItem(
-                        title = "แจ้งเตือน",
-                        subtitle = "จัดการการแจ้งเตือน",
-                        icon = Icons.Default.Notifications,
-                        iconTintColor = Color(0xFF0097B2),
-                        iconBgColor = Color(0xFFE1F5FE),
-                        onClick = {
-                            Toast.makeText(context, "แจ้งเตือน", Toast.LENGTH_SHORT).show()
-                        }
-                    )
-                    Divider(modifier = Modifier.padding(horizontal = 16.dp), color = Color(0xFFEEEEEE))
                     SettingsItem(
                         title = "ออกจากระบบ",
                         subtitle = null,
