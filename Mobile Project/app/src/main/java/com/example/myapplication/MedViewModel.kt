@@ -37,21 +37,19 @@ class MedViewModel : ViewModel() {
         startDate: String,
         stopDate: String,
         quantity: Int,
-        scheduleItems: List<Pair<String?, String>>,
+        scheduleItems: List<Triple<String?, String?, String?>>,
         onComplete: (Boolean, String) -> Unit
     ) {
         Log.d("MedAPI", "เริ่มขั้นตอนที่ 1: สร้างยาหลัก ($name, $medicineType)")
         
-        // 1. บันทึกลงตาราง med (แก้ไข: ส่ง medicineType เข้าไปในช่อง form)
         val medBody = MedRequest(name = name, form = medicineType)
         MedClient.instance.insertMed(medBody).enqueue(object : Callback<MedResponse> {
             override fun onResponse(call: Call<MedResponse>, response: Response<MedResponse>) {
                 if (response.isSuccessful) {
                     val medId = response.body()?.idmed
                     if (medId != null) {
-                        Log.d("MedAPI", "ขั้นตอนที่ 2: บันทึกยาสำเร็จ (ID: $medId), กำลังบันทึก Instruction...")
+                        Log.d("MedAPI", "ขั้นตอนที่ 2: บันทึกยาสำเร็จ (ID: $medId)")
                         
-                        // 2. บันทึกลงตาราง instruction
                         val instBody = InstructionRequest(
                             amount = amount,
                             instructions = instructions,
@@ -63,9 +61,8 @@ class MedViewModel : ViewModel() {
                         MedClient.instance.insertInstruction(medId, instBody).enqueue(object : Callback<Void> {
                             override fun onResponse(call: Call<Void>, response: Response<Void>) {
                                 if (response.isSuccessful) {
-                                    Log.d("MedAPI", "ขั้นตอนที่ 3: บันทึก Instruction สำเร็จ, กำลังบันทึก Schedules จำนวน ${scheduleItems.size} รายการ...")
+                                    Log.d("MedAPI", "ขั้นตอนที่ 3: บันทึก Schedules...")
                                     
-                                    // 3. บันทึกลงตาราง schedules
                                     if (scheduleItems.isEmpty()) {
                                         getAllMed()
                                         onComplete(true, "บันทึกสำเร็จ")
@@ -73,26 +70,29 @@ class MedViewModel : ViewModel() {
                                         var completedCount = 0
                                         var hasError = false
                                         scheduleItems.forEach { item ->
-                                            val schedBody = ScheduleRequest(time = item.first, type = item.second)
+                                            val schedBody = ScheduleRequest(
+                                                time = item.first,
+                                                type = item.second,
+                                                hour = item.third
+                                            )
                                             MedClient.instance.insertSchedule(medId, schedBody).enqueue(object : Callback<Void> {
                                                 override fun onResponse(call: Call<Void>, response: Response<Void>) {
                                                     completedCount++
                                                     if (!response.isSuccessful) {
                                                         hasError = true
-                                                        Log.e("MedAPI", "บันทึก Schedule ล้มเหลว: ${response.code()}")
+                                                        Log.e("MedAPI", "Schedule fail: ${response.code()}")
                                                     }
                                                     if (completedCount == scheduleItems.size) {
                                                         getAllMed()
-                                                        onComplete(true, if (hasError) "บันทึกสำเร็จ แต่อาจมีบางเวลาที่ขัดข้อง" else "บันทึกสำเร็จครบทุกส่วน")
+                                                        onComplete(true, if (hasError) "บันทึกสำเร็จ แต่อาจมีบางส่วนผิดพลาด" else "บันทึกสำเร็จ")
                                                     }
                                                 }
                                                 override fun onFailure(call: Call<Void>, t: Throwable) {
                                                     completedCount++
                                                     hasError = true
-                                                    Log.e("MedAPI", "เชื่อมต่อ Schedule ล้มเหลว: ${t.message}")
                                                     if (completedCount == scheduleItems.size) {
                                                         getAllMed()
-                                                        onComplete(true, "บันทึกยาสำเร็จ แต่อาจมีบางเวลาที่ขัดข้อง")
+                                                        onComplete(true, "บันทึกสำเร็จ แต่การเชื่อมต่อมีปัญหา")
                                                     }
                                                 }
                                             })
@@ -103,18 +103,18 @@ class MedViewModel : ViewModel() {
                                 }
                             }
                             override fun onFailure(call: Call<Void>, t: Throwable) {
-                                onComplete(false, "เกิดข้อผิดพลาดในการเชื่อมต่อ (Instruction)")
+                                onComplete(false, "เชื่อมต่อ Instruction ล้มเหลว")
                             }
                         })
                     } else {
-                        onComplete(false, "เซิร์ฟเวอร์ไม่ได้ส่ง ID ยากลับมา (กรุณาเช็ค insertId ใน Backend)")
+                        onComplete(false, "ไม่ได้รับ ID ยาจากเซิร์ฟเวอร์")
                     }
                 } else {
                     onComplete(false, "บันทึกยาหลักล้มเหลว (${response.code()})")
                 }
             }
             override fun onFailure(call: Call<MedResponse>, t: Throwable) {
-                onComplete(false, "เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ (Med)")
+                onComplete(false, "เชื่อมต่อเซิร์ฟเวอร์ไม่ได้")
             }
         })
     }

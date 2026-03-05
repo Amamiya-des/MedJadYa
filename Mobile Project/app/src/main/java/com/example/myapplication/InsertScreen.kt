@@ -32,13 +32,13 @@ fun InsertScreen(navController: NavController, viewModel: MedViewModel) {
     val context = LocalContext.current
     var name by remember { mutableStateOf("") }
     var amount by remember { mutableStateOf("") }
-    var selectedType by remember { mutableStateOf("ยาเม็ด") }
+    var selectedType by remember { mutableStateOf("Tablet") }
     
-    var scheduleMode by remember { mutableStateOf("กินตามช่วงเวลา") } 
-    var mealRelation by remember { mutableStateOf("หลังอาหาร") }
+    var scheduleMode by remember { mutableStateOf("Period") } 
+    var mealRelation by remember { mutableStateOf("After Meal") }
     
-    val selectedPeriods = remember { mutableStateMapOf("เช้า" to false, "เที่ยง" to false, "เย็น" to false, "ก่อนนอน" to false) }
-    val periodTimes = remember { mutableStateMapOf("เช้า" to "08:00", "เที่ยง" to "12:00", "เย็น" to "18:00", "ก่อนนอน" to "21:00") }
+    val selectedPeriods = remember { mutableStateMapOf("Morning" to false, "Noon" to false, "Evening" to false, "Bedtime" to false) }
+    val periodTimes = remember { mutableStateMapOf("Morning" to "08:00", "Noon" to "12:00", "Evening" to "18:00", "Bedtime" to "21:00") }
     
     var everyXHours by remember { mutableStateOf("1") }
     
@@ -50,10 +50,10 @@ fun InsertScreen(navController: NavController, viewModel: MedViewModel) {
     var showStopDatePicker by remember { mutableStateOf(false) }
 
     val medTypes = listOf(
-        Pair("ยาเม็ด", android.R.drawable.ic_menu_gallery),
-        Pair("ยาแคปซูล", android.R.drawable.ic_menu_gallery),
-        Pair("ยาน้ำ", android.R.drawable.ic_menu_gallery),
-        Pair("ยาฉีด", android.R.drawable.ic_menu_gallery)
+        Pair("Tablet", "ยาเม็ด"),
+        Pair("Capsule", "ยาแคปซูล"),
+        Pair("Syrup", "ยาน้ำ"),
+        Pair("Injection", "ยาฉีด")
     )
 
     Scaffold(
@@ -80,11 +80,12 @@ fun InsertScreen(navController: NavController, viewModel: MedViewModel) {
                             if (amount.isBlank()) { Toast.makeText(context, "กรุณากรอกปริมาณยา", Toast.LENGTH_SHORT).show(); return@Button }
                             if (quantity.isBlank()) { Toast.makeText(context, "กรุณากรอกจำนวนยา", Toast.LENGTH_SHORT).show(); return@Button }
 
-                            val scheduleItems = mutableListOf<Pair<String?, String>>()
-                            if (scheduleMode == "กินตามช่วงเวลา") {
+                            val scheduleItems = mutableListOf<Triple<String?, String?, String?>>()
+                            if (scheduleMode == "Period") {
                                 selectedPeriods.forEach { (period, isSelected) ->
                                     if (isSelected) {
-                                        scheduleItems.add(Pair("${periodTimes[period]}:00", period))
+                                        // สำหรับ "Period": ส่ง time, type (period), hour = null
+                                        scheduleItems.add(Triple("${periodTimes[period]}:00", period, null))
                                     }
                                 }
                                 if (scheduleItems.isEmpty()) {
@@ -92,7 +93,9 @@ fun InsertScreen(navController: NavController, viewModel: MedViewModel) {
                                     return@Button
                                 }
                             } else {
-                                scheduleItems.add(Pair(null, "ทุกๆ $everyXHours ชั่วโมง"))
+                                // สำหรับ "Hours": ส่ง time = null, type = null, และส่งค่าชั่วโมงเป็นรูปแบบเวลา (เช่น "04:00:00")
+                                val formattedHourTime = String.format(Locale.getDefault(), "%02d:00:00", everyXHours.toIntOrNull() ?: 0)
+                                scheduleItems.add(Triple(null, null, formattedHourTime))
                             }
 
                             Toast.makeText(context, "กำลังบันทึกข้อมูล...", Toast.LENGTH_SHORT).show()
@@ -100,7 +103,7 @@ fun InsertScreen(navController: NavController, viewModel: MedViewModel) {
                                 name = name,
                                 medicineType = selectedType,
                                 amount = amount,
-                                instructions = if (scheduleMode == "กินตามช่วงเวลา") mealRelation else "",
+                                instructions = if (scheduleMode == "Period") mealRelation else "",
                                 startDate = startDate,
                                 stopDate = stopDate,
                                 quantity = quantity.toIntOrNull() ?: 0,
@@ -131,13 +134,13 @@ fun InsertScreen(navController: NavController, viewModel: MedViewModel) {
             Spacer(modifier = Modifier.height(16.dp))
             SectionTitle("ประเภทของยา *")
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                MedTypeItem(medTypes[0].first, selectedType == medTypes[0].first, Modifier.weight(1f)) { selectedType = it }
-                MedTypeItem(medTypes[1].first, selectedType == medTypes[1].first, Modifier.weight(1f)) { selectedType = it }
+                MedTypeItem(medTypes[0].first, medTypes[0].second, selectedType == medTypes[0].first, Modifier.weight(1f)) { selectedType = it }
+                MedTypeItem(medTypes[1].first, medTypes[1].second, selectedType == medTypes[1].first, Modifier.weight(1f)) { selectedType = it }
             }
             Spacer(modifier = Modifier.height(8.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                MedTypeItem(medTypes[2].first, selectedType == medTypes[2].first, Modifier.weight(1f)) { selectedType = it }
-                MedTypeItem(medTypes[3].first, selectedType == medTypes[3].first, Modifier.weight(1f)) { selectedType = it }
+                MedTypeItem(medTypes[2].first, medTypes[2].second, selectedType == medTypes[2].first, Modifier.weight(1f)) { selectedType = it }
+                MedTypeItem(medTypes[3].first, medTypes[3].second, selectedType == medTypes[3].first, Modifier.weight(1f)) { selectedType = it }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -145,8 +148,9 @@ fun InsertScreen(navController: NavController, viewModel: MedViewModel) {
             
             var modeExpanded by remember { mutableStateOf(false) }
             Box {
+                val modeDisplay = if (scheduleMode == "Period") "กินตามช่วงเวลา" else "กินทุกๆกี่ชั่วโมง"
                 OutlinedTextField(
-                    value = scheduleMode, onValueChange = {}, readOnly = true,
+                    value = modeDisplay, onValueChange = {}, readOnly = true,
                     label = { Text("รูปแบบการทาน") },
                     modifier = Modifier.fillMaxWidth().clickable { modeExpanded = true },
                     trailingIcon = { Icon(Icons.Default.ArrowDropDown, null) },
@@ -154,37 +158,37 @@ fun InsertScreen(navController: NavController, viewModel: MedViewModel) {
                     colors = OutlinedTextFieldDefaults.colors(disabledTextColor = Color.Black, disabledBorderColor = Color.Gray)
                 )
                 DropdownMenu(expanded = modeExpanded, onDismissRequest = { modeExpanded = false }, modifier = Modifier.fillMaxWidth(0.9f)) {
-                    DropdownMenuItem(text = { Text("กินตามช่วงเวลา") }, onClick = { scheduleMode = "กินตามช่วงเวลา"; modeExpanded = false })
-                    DropdownMenuItem(text = { Text("กินทุกๆกี่ชั่วโมง") }, onClick = { scheduleMode = "กินทุกๆกี่ชั่วโมง"; modeExpanded = false })
+                    DropdownMenuItem(text = { Text("กินตามช่วงเวลา") }, onClick = { scheduleMode = "Period"; modeExpanded = false })
+                    DropdownMenuItem(text = { Text("กินทุกๆกี่ชั่วโมง") }, onClick = { scheduleMode = "Hours"; modeExpanded = false })
                 }
             }
 
-            if (scheduleMode == "กินตามช่วงเวลา") {
+            if (scheduleMode == "Period") {
                 Spacer(modifier = Modifier.height(16.dp))
                 Text("ความสัมพันธ์กับมื้ออาหาร:", fontWeight = FontWeight.Medium)
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    RadioButton(selected = mealRelation == "ก่อนอาหาร", onClick = { mealRelation = "ก่อนอาหาร" })
+                    RadioButton(selected = mealRelation == "Before Meal", onClick = { mealRelation = "Before Meal" })
                     Text("ก่อนอาหาร")
                     Spacer(modifier = Modifier.width(16.dp))
-                    RadioButton(selected = mealRelation == "หลังอาหาร", onClick = { mealRelation = "หลังอาหาร" })
+                    RadioButton(selected = mealRelation == "After Meal", onClick = { mealRelation = "After Meal" })
                     Text("หลังอาหาร")
                 }
 
-                PeriodSelectionRow("เช้า", "05:00-11:59", 5, 11, selectedPeriods["เช้า"]!!, periodTimes["เช้า"]!!) { isSel, time ->
-                    selectedPeriods["เช้า"] = isSel
-                    periodTimes["เช้า"] = time
+                PeriodSelectionRow("Morning", "เช้า", "05:00-11:59", 5, 11, selectedPeriods["Morning"]!!, periodTimes["Morning"]!!) { isSel, time ->
+                    selectedPeriods["Morning"] = isSel
+                    periodTimes["Morning"] = time
                 }
-                PeriodSelectionRow("เที่ยง", "12:00-15:59", 12, 15, selectedPeriods["เที่ยง"]!!, periodTimes["เที่ยง"]!!) { isSel, time ->
-                    selectedPeriods["เที่ยง"] = isSel
-                    periodTimes["เที่ยง"] = time
+                PeriodSelectionRow("Noon", "เที่ยง", "12:00-15:59", 12, 15, selectedPeriods["Noon"]!!, periodTimes["Noon"]!!) { isSel, time ->
+                    selectedPeriods["Noon"] = isSel
+                    periodTimes["Noon"] = time
                 }
-                PeriodSelectionRow("เย็น", "16:00-19:59", 16, 19, selectedPeriods["เย็น"]!!, periodTimes["เย็น"]!!) { isSel, time ->
-                    selectedPeriods["เย็น"] = isSel
-                    periodTimes["เย็น"] = time
+                PeriodSelectionRow("Evening", "เย็น", "16:00-19:59", 16, 19, selectedPeriods["Evening"]!!, periodTimes["Evening"]!!) { isSel, time ->
+                    selectedPeriods["Evening"] = isSel
+                    periodTimes["Evening"] = time
                 }
-                PeriodSelectionRow("ก่อนนอน", "20:00-23:59", 20, 23, selectedPeriods["ก่อนนอน"]!!, periodTimes["ก่อนนอน"]!!) { isSel, time ->
-                    selectedPeriods["ก่อนนอน"] = isSel
-                    periodTimes["ก่อนนอน"] = time
+                PeriodSelectionRow("Bedtime", "ก่อนนอน", "20:00-23:59", 20, 23, selectedPeriods["Bedtime"]!!, periodTimes["Bedtime"]!!) { isSel, time ->
+                    selectedPeriods["Bedtime"] = isSel
+                    periodTimes["Bedtime"] = time
                 }
             } else {
                 Spacer(modifier = Modifier.height(16.dp))
@@ -219,12 +223,12 @@ fun InsertScreen(navController: NavController, viewModel: MedViewModel) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PeriodSelectionRow(period: String, range: String, minHour: Int, maxHour: Int, isSelected: Boolean, time: String, onUpdate: (Boolean, String) -> Unit) {
+fun PeriodSelectionRow(periodId: String, periodLabel: String, range: String, minHour: Int, maxHour: Int, isSelected: Boolean, time: String, onUpdate: (Boolean, String) -> Unit) {
     var showTimePicker by remember { mutableStateOf(false) }
     Column {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             Checkbox(checked = isSelected, onCheckedChange = { onUpdate(it, time) })
-            Text(period, fontWeight = FontWeight.Bold, modifier = Modifier.width(60.dp))
+            Text(periodLabel, fontWeight = FontWeight.Bold, modifier = Modifier.width(60.dp))
             Text("($range)", fontSize = 12.sp, color = Color.Gray, modifier = Modifier.weight(1f))
             if (isSelected) {
                 OutlinedButton(onClick = { showTimePicker = true }, shape = RoundedCornerShape(8.dp)) {
@@ -273,11 +277,11 @@ fun SectionTitle(title: String) {
 }
 
 @Composable
-fun MedTypeItem(title: String, isSelected: Boolean, modifier: Modifier = Modifier, onClick: (String) -> Unit) {
+fun MedTypeItem(id: String, label: String, isSelected: Boolean, modifier: Modifier = Modifier, onClick: (String) -> Unit) {
     Card(
         modifier = modifier
             .height(100.dp)
-            .clickable { onClick(title) },
+            .clickable { onClick(id) },
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (isSelected) Color(0xFF0097A7) else Color.White
@@ -297,7 +301,7 @@ fun MedTypeItem(title: String, isSelected: Boolean, modifier: Modifier = Modifie
                 modifier = Modifier.size(32.dp)
             )
             Text(
-                text = title,
+                text = label,
                 color = if (isSelected) Color.White else Color.Gray,
                 fontSize = 14.sp
             )

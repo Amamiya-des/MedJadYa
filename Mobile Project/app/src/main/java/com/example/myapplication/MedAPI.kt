@@ -46,6 +46,7 @@ data class InstructionRequest(
 )
 
 data class ScheduleRequest(
-    val time: String?,
-    val type: String
+    val time: String? = null,
+    val type: String? = null,
+    val hour: String? = null
 )
