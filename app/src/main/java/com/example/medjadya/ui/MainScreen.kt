@@ -79,7 +79,7 @@ fun MainScreen() {
                 val medicationViewModel: MedLogViewModel= viewModel()
 
                 RecordScreen(
-                    viewModel = medicationViewModel
+                    userId = 2, viewModel = medicationViewModel
                 )
             }
             composable(Screen.Profile.route) { 

@@ -7,14 +7,15 @@ import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.Path
+import retrofit2.http.Query
 
 interface MedicationApiService {
     @GET("medications")
     suspend fun getMedications(): List<Medication>
 
 
-    @GET("api/logs/{medId}") // ตรวจสอบว่ามี /api/ นำหน้าตามที่ตั้งใน server.js หรือไม่
-    suspend fun getLogs(@Path("medId") medId: Int): List<MedLog>
+    @GET("api/logs/{userId}") // ตรวจสอบว่ามี /api/ นำหน้าตามที่ตั้งใน server.js หรือไม่
+    suspend fun getLogsByUser(@Path("userId") userId: Int): List<MedLog>
 
 }
 

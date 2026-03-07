@@ -54,9 +54,9 @@ import com.example.medjadya.model.DailySummary
 import com.example.medjadya.viewmodel.MedLogViewModel
 
 @Composable
-fun RecordScreen(viewModel: MedLogViewModel = viewModel()) {
-    LaunchedEffect(Unit) {
-        viewModel.fetchMedLogs(1)
+fun RecordScreen(userId: Int, viewModel: MedLogViewModel = viewModel()) {
+    LaunchedEffect(userId) {
+        viewModel.fetchMedLogs(userId)
     }
 
     Scaffold(

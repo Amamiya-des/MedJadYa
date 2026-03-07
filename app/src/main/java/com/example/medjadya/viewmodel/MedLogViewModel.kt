@@ -25,22 +25,16 @@ class MedLogViewModel : ViewModel() {
     var overallProgress = mutableStateOf(0f)
     var selectedPeriod = mutableStateOf("ทั้งหมด")
 
-    fun fetchMedLogs(medId: Int) {
+    fun fetchMedLogs(userId: Int) {
         viewModelScope.launch {
             try {
-                val logs = RetrofitClient.instance.getLogs(medId)
-
+                val logs = RetrofitClient.instance.getLogsByUser(userId) // เรียก API ตัวใหม่
                 if (logs.isNotEmpty()) {
-                    // 2. เก็บข้อมูลลงใน allLogsList เพื่อใช้กรองในภายหลัง
                     allLogsList = logs
-
-                    // 3. เรียก filterData เพื่อคำนวณสถิติเริ่มต้น (เช่น สัปดาห์ หรือ ทั้งหมด)
                     filterData("ทั้งหมด", allLogsList)
-                } else {
-                    Log.d("API_DEBUG", "No data found for medId: $medId")
                 }
             } catch (e: Exception) {
-                Log.e("API_DEBUG", "Error fetching data: ${e.message}")
+                Log.e("API_DEBUG", "${e.message}")
             }
         }
     }
@@ -84,53 +78,94 @@ class MedLogViewModel : ViewModel() {
         val inputFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
         val outputFormat = SimpleDateFormat("EEEE ที่ d MMMM", Locale("th"))
 
-        // 1. จัดกลุ่มตามวันที่ 10 หลักแรก (yyyy-MM-dd)
         val grouped = logs.groupBy { it.taken.substring(0, 10) }
 
         val summaries = grouped.map { (dateString, dayLogs) ->
             val date = inputFormat.parse(dateString)
             val displayDateText = if (date != null) outputFormat.format(date) else "วันที่ไม่ถูกต้อง"
 
-            // สร้างรายการยาแยกตามมื้อ
+            var takenMealsCount = 0
+            var totalActiveMeals = 0
+
             val mealsList = listOf("เช้า", "กลางวัน", "เย็น", "ก่อนนอน").map { mealName ->
-                val medsInMeal = dayLogs.filter { log ->
-                    val hour = log.taken.substring(11, 13).toInt()
-                    when (mealName) {
-                        "เช้า" -> hour in 5..9
-                        "กลางวัน" -> hour in 11..13
-                        "เย็น" -> hour in 16..19
-                        "ก่อนนอน" -> hour >= 20 || hour < 5
-                        else -> false
+                // กรองหา Log เฉพาะของมื้อนั้นๆ
+                val logsInThisMeal = dayLogs.filter { log ->
+                    try {
+                        val hourString = log.taken.substring(11, 13).trim()
+                        var hour = hourString.toInt()
+
+                        // --- ส่วนปรับแก้ Timezone ---
+                        // ถ้าดึงมาแล้วเวลาหายไป 7 ชั่วโมง ให้บวก 7
+                        // ถ้าดึงมาแล้วเวลาเกินไป 7 ชั่วโมง ให้ลบ 7
+                        // ตัวอย่าง: แก้ให้เป็นเวลาไทย (UTC+7)
+                        hour = (hour + 7) % 24
+
+                        android.util.Log.d("CHECK_HOUR", "Adjusted Hour: $hour | Date: ${log.taken}")
+
+                        when (mealName) {
+                            "เช้า" -> hour in 5..10      // เลข 7 จะตกที่นี่แล้ว!
+                            "กลางวัน" -> hour in 11..14
+                            "เย็น" -> hour in 15..19
+                            "ก่อนนอน" -> hour >= 20 || hour < 5
+                            else -> false
+                        }
+                    } catch (e: Exception) {
+                        false
                     }
-                }.map { log ->
+                }
+
+                // --- คำนวณรายมื้อ ---
+                if (logsInThisMeal.isNotEmpty()) {
+                    totalActiveMeals++ // นับเป็นมื้อที่มีการตั้งค่าทานยาไว้
+
+                    // ถ้าทุกตัวในมื้อนี้สถานะเป็น taken ทั้งหมด (ไม่มี missed เลย)
+                    val isMealComplete = logsInThisMeal.all { it.status == "taken" }
+                    if (isMealComplete) {
+                        takenMealsCount++
+                    }
+                }
+
+                val medsDetail = logsInThisMeal.map { log ->
                     val statusThai = if (log.status == "taken") "ทานแล้ว" else "ไม่ได้ทาน"
+
+                    // --- ปรับเวลาสำหรับการแสดงผลบนหน้าจอ ---
+                    val rawHour = log.taken.substring(11, 13).trim().toInt()
+                    val rawMinute = log.taken.substring(14, 16)
+
+                    // ปรับชั่วโมงให้เป็นเวลาไทย (+7 หรือตามที่คุณคำนวณไว้)
+                    val adjustedHour = (rawHour + 7) % 24
+
+                    // ทำให้อยู่ในรูปแบบ 00:00 (เติมเลข 0 ข้างหน้าถ้าเป็นเลขหลักเดียว)
+                    val displayTime = "${adjustedHour.toString().padStart(2, '0')}:$rawMinute"
+
                     if (log.status == "taken") {
-                        // แสดงเวลาเฉพาะกรณีที่ทานแล้ว
-                        val timeOnly = log.taken.substring(11, 16)
-                        "${log.med_name} ($statusThai) - $timeOnly น."
+                        // ใช้ displayTime ที่ปรับแล้วแทน substring อันเดิม
+                        "${log.med_name} ($statusThai) - $displayTime น."
                     } else {
                         "${log.med_name} ($statusThai)"
                     }
                 }
-                MedByMeal(mealName = mealName, meds = medsInMeal)
+
+                MedByMeal(mealName = mealName, meds = medsDetail)
             }
 
-            val takenCount = dayLogs.count { it.status == "taken" }
-            val total = dayLogs.size
-            val missedCount = total - takenCount
+            // คำนวณจำนวนมื้อที่พลาด
+            val missedMealsCount = totalActiveMeals - takenMealsCount
 
             DailySummary(
                 displayDate = displayDateText,
-                takenCount = takenCount,
-                totalCount = total,
-                progress = if (total > 0) takenCount.toFloat() / total else 0f,
-                statusText = if (takenCount == total) "ทานครบ" else "ไม่ได้ทาน $missedCount ครั้ง",
-                meals = mealsList, // ใส่ข้อมูลมื้ออาหารที่คำนวณไว้
-                dateKey = dateString // เก็บค่า yyyy-MM-dd ไว้สำหรับ Sorting
+                takenCount = takenMealsCount, // เปลี่ยนจากจำนวนเม็ดเป็น "จำนวนมื้อที่ทานครบ"
+                totalCount = totalActiveMeals, // เปลี่ยนจากจำนวนเม็ดเป็น "จำนวนมื้อทั้งหมด"
+                progress = if (totalActiveMeals > 0) takenMealsCount.toFloat() / totalActiveMeals else 0f,
+                statusText = if (takenMealsCount == totalActiveMeals) {
+                    "ทานครบทุกมื้อ"
+                } else {
+                    "พลาดการทานยา $missedMealsCount มื้อ"
+                },
+                meals = mealsList,
+                dateKey = dateString
             )
-        }
-            // 2. เรียงลำดับจากวันที่ล่าสุดขึ้นก่อน (Descending)
-            .sortedByDescending { it.dateKey }
+        }.sortedByDescending { it.dateKey }
 
         dailySummaries.clear()
         dailySummaries.addAll(summaries)
