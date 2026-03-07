@@ -4,13 +4,13 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import com.example.medjadya.ui.screens.MedicationDashboardScreen
+import com.example.medjadya.ui.screens.MedicationViewModel
 import com.example.medjadya.ui.theme.MedJadYaTheme
 
 class MainActivity : ComponentActivity() {
@@ -19,29 +19,22 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             MedJadYaTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "Android",
-                        modifier = Modifier.padding(innerPadding)
-                    )
-                }
+                MainNavigation()
             }
         }
     }
 }
 
 @Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
+fun MainNavigation() {
+    val navController = rememberNavController()
+    val medicationViewModel: MedicationViewModel = viewModel()
 
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    MedJadYaTheme {
-        Greeting("Android")
+    NavHost(navController = navController, startDestination = "dashboard") {
+        composable("dashboard") {
+            MedicationDashboardScreen(
+                viewModel = medicationViewModel
+            )
+        }
     }
 }
