@@ -1,11 +1,15 @@
 package com.example.medjadya.ui
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -55,6 +59,16 @@ fun MainScreen() {
                     )
                 }
             }
+        },
+        floatingActionButton = {
+            // เพิ่มปุ่มเพื่อไปยังหน้า Test
+            FloatingActionButton(
+                onClick = { navController.navigate(Screen.Test.route) },
+                containerColor = Color(0xFF1E9EBD),
+                contentColor = Color.White
+            ) {
+                Icon(Icons.Default.Settings, contentDescription = "Test Screen")
+            }
         }
     ) { innerPadding ->
         NavHost(
@@ -79,6 +93,9 @@ fun MainScreen() {
                 Surface(modifier = Modifier.fillMaxSize()) { 
                     Text("โปรไฟล์", modifier = Modifier.wrapContentSize()) 
                 }
+            }
+            composable(Screen.Test.route) {
+                TestScreen()
             }
         }
     }
