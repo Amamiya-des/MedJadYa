@@ -25,5 +25,8 @@ fun NavGraph(navController: NavHostController) {
         composable(Screen.EditProfile.route) {
             EditProfileScreen(navController, studentViewModel)
         }
+        composable(Screen.NotificationSettings.route) {
+            NotificationSettingsScreen(navController)
+        }
     }
 }

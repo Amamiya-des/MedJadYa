@@ -10,11 +10,7 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowForward
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.ExitToApp
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -228,6 +224,18 @@ fun ProfileScreen(navController: NavHostController, viewModel: StudentViewModel)
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
                 Column {
+                    // ปุ่มการแจ้งเตือน
+                    SettingsItem(
+                        title = "การแจ้งเตือน",
+                        subtitle = "เปิด/ปิด การแจ้งเตือนแอป",
+                        icon = Icons.Default.Notifications,
+                        iconTintColor = Color(0xFF0097B2),
+                        iconBgColor = Color(0xFFE1F5FE),
+                        onClick = {
+                            navController.navigate(Screen.NotificationSettings.route)
+                        }
+                    )
+                    Divider(modifier = Modifier.padding(horizontal = 16.dp), color = Color(0xFFEEEEEE))
                     // ปุ่มแก้ไขโปรไฟล์
                     SettingsItem(
                         title = "แก้ไขโปรไฟล์",
