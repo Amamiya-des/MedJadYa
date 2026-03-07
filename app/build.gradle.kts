@@ -5,13 +5,13 @@ plugins {
 }
 
 android {
-    namespace = "com.example.myapplication"
-    compileSdk = 35
+    namespace = "com.example.medjadya"
+    compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.example.myapplication"
-        minSdk = 26
-        targetSdk = 35
+        applicationId = "com.example.medjadya"
+        minSdk = 27
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0"
 
@@ -28,29 +28,20 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
     }
-    kotlin {
-        jvmToolchain(17)
+    kotlinOptions {
+        jvmTarget = "11"
     }
     buildFeatures {
         compose = true
     }
-    
     packaging {
         resources {
-            // ปิดการรวมไฟล์ทั้งหมดใน META-INF เพื่อแก้ VerifyException
             excludes += "META-INF/**"
             excludes += "**/*.kotlin_module"
         }
-    }
-}
-
-// คำสั่งพิเศษเพื่อข้าม Task mergeDebugJavaResource ที่ทำให้เกิด Error
-tasks.whenTaskAdded {
-    if (name == "mergeDebugJavaResource" || name == "mergeReleaseJavaResource") {
-        enabled = false
     }
 }
 
@@ -63,11 +54,12 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
-    
-    // Retrofit & Navigation
-    implementation(libs.retrofit)
-    implementation(libs.converter.gson)
     implementation(libs.androidx.navigation.compose)
+    
+    // Retrofit & Gson
+    implementation(libs.retrofit)
+    implementation(libs.retrofit.converter.gson)
+    implementation(libs.gson)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
@@ -76,4 +68,10 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
+}
+
+tasks.whenTaskAdded {
+    if (name == "mergeDebugJavaResource" || name == "mergeReleaseJavaResource") {
+        enabled = false
+    }
 }
