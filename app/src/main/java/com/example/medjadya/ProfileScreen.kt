@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Warning
@@ -130,17 +131,16 @@ fun ProfileScreen(navController: NavHostController, viewModel: StudentViewModel)
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 8.dp),
-                shape = RoundedCornerShape(20.dp), // ปรับให้โค้งมนมากขึ้นเล็กน้อย
+                shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White),
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
                 Row(
                     modifier = Modifier
-                        .padding(20.dp) // เพิ่ม padding ภายในการ์ด
+                        .padding(20.dp)
                         .fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Profile Image - ปรับขนาดเป็น 100.dp
                     Image(
                         painter = painterResource(id = R.drawable.profile),
                         contentDescription = "Profile Picture",
@@ -154,7 +154,7 @@ fun ProfileScreen(navController: NavHostController, viewModel: StudentViewModel)
                         profileResponse?.data?.let { user ->
                             Text(
                                 text = user.name ?: "ไม่ทราบชื่อ",
-                                fontSize = 22.sp, // ปรับขนาดฟอนต์ชื่อให้ใหญ่ขึ้น
+                                fontSize = 22.sp,
                                 fontWeight = FontWeight.Bold
                             )
                             Spacer(modifier = Modifier.height(4.dp))
@@ -228,6 +228,19 @@ fun ProfileScreen(navController: NavHostController, viewModel: StudentViewModel)
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
                 Column {
+                    // ปุ่มแก้ไขโปรไฟล์
+                    SettingsItem(
+                        title = "แก้ไขโปรไฟล์",
+                        subtitle = "แก้ไขชื่อและอีเมลของคุณ",
+                        icon = Icons.Default.Edit,
+                        iconTintColor = Color(0xFF0097B2),
+                        iconBgColor = Color(0xFFE1F5FE),
+                        onClick = {
+                            navController.navigate(Screen.EditProfile.route)
+                        }
+                    )
+                    Divider(modifier = Modifier.padding(horizontal = 16.dp), color = Color(0xFFEEEEEE))
+                    // ปุ่มออกจากระบบ
                     SettingsItem(
                         title = "ออกจากระบบ",
                         subtitle = null,
@@ -338,12 +351,11 @@ fun SettingsItem(
                 )
             }
         }
-        if (subtitle != null) {
-            Icon(
-                imageVector = Icons.Default.ArrowForward,
-                contentDescription = null,
-                tint = Color.Black
-            )
-        }
+        Icon(
+            imageVector = Icons.Default.ArrowForward,
+            contentDescription = null,
+            tint = Color.Black,
+            modifier = Modifier.size(20.dp)
+        )
     }
 }

@@ -11,6 +11,7 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
     // หน้าจอสำหรับ Authentication (ไม่ได้อยู่ใน Bottom Nav)
     data object Login : Screen("login_screen", "เข้าสู่ระบบ", Icons.Default.Person)
     data object Register : Screen("register_screen", "สมัครสมาชิก", Icons.Default.Person)
+    data object EditProfile : Screen("edit_profile_screen", "แก้ไขโปรไฟล์", Icons.Default.Person)
 
     // หน้าจอหลักใน Bottom Navigation
     data object Home : Screen("home", "หน้าหลัก", Icons.Default.Home)

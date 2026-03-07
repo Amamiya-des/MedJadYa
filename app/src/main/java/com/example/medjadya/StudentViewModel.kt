@@ -24,7 +24,7 @@ class StudentViewModel : ViewModel() {
         _loginResult = null
     }
 
-    // Login Function ปรับเป็น email และ password
+    // Login Function
     fun login(email: String, password: String) {
         viewModelScope.launch {
             try {
@@ -85,6 +85,28 @@ class StudentViewModel : ViewModel() {
             } catch (e: Exception) {
                 _errorMessage = "Network Error: ${e.message}"
                 Toast.makeText(context, _errorMessage, Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    // Update Profile Function เพิ่ม age เข้ามา
+    fun updateProfile(id: String, name: String, email: String, age: String, onSuccess: () -> Unit) {
+        viewModelScope.launch {
+            try {
+                val userData = mapOf(
+                    "name" to name,
+                    "email" to email,
+                    "age" to age
+                )
+                val response = StudentClient.studentAPI.updateProfile(id, userData)
+                if (response.isSuccessful) {
+                    getProfile(id)
+                    onSuccess()
+                } else {
+                    _errorMessage = "Update failed: ${response.message()}"
+                }
+            } catch (e: Exception) {
+                _errorMessage = "Error: ${e.message}"
             }
         }
     }
