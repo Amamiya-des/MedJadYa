@@ -1,6 +1,5 @@
 package com.example.medjadya.ui
 
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentSize
@@ -9,22 +8,23 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.medjadya.navigation.Screen
 import com.example.medjadya.navigation.bottomNavItems
+import com.example.medjadya.viewmodel.AuthViewModel
 
 @Composable
-fun MainScreen() {
-    val navController = rememberNavController()
+fun MainScreen(rootNavController: NavHostController, authViewModel: AuthViewModel) {
+    val bottomNavController = rememberNavController()
     
     Scaffold(
         bottomBar = {
@@ -32,7 +32,7 @@ fun MainScreen() {
                 containerColor = Color.White,
                 tonalElevation = 8.dp
             ) {
-                val navBackStackEntry by navController.currentBackStackEntryAsState()
+                val navBackStackEntry by bottomNavController.currentBackStackEntryAsState()
                 val currentDestination = navBackStackEntry?.destination
                 
                 bottomNavItems.forEach { screen ->
@@ -41,8 +41,8 @@ fun MainScreen() {
                         label = { Text(screen.title) },
                         selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
                         onClick = {
-                            navController.navigate(screen.route) {
-                                popUpTo(navController.graph.findStartDestination().id) {
+                            bottomNavController.navigate(screen.route) {
+                                popUpTo(bottomNavController.graph.findStartDestination().id) {
                                     saveState = true
                                 }
                                 launchSingleTop = true
@@ -61,9 +61,8 @@ fun MainScreen() {
             }
         },
         floatingActionButton = {
-            // เพิ่มปุ่มเพื่อไปยังหน้า Test
             FloatingActionButton(
-                onClick = { navController.navigate(Screen.Test.route) },
+                onClick = { bottomNavController.navigate(Screen.Test.route) },
                 containerColor = Color(0xFF1E9EBD),
                 contentColor = Color.White
             ) {
@@ -72,8 +71,8 @@ fun MainScreen() {
         }
     ) { innerPadding ->
         NavHost(
-            navController = navController,
-            startDestination = Screen.Medicine.route,
+            navController = bottomNavController,
+            startDestination = Screen.Home.route,
             modifier = Modifier.padding(innerPadding)
         ) {
             composable(Screen.Home.route) { 
@@ -90,12 +89,13 @@ fun MainScreen() {
                 }
             }
             composable(Screen.Profile.route) { 
-                Surface(modifier = Modifier.fillMaxSize()) { 
-                    Text("โปรไฟล์", modifier = Modifier.wrapContentSize()) 
-                }
+                ProfileScreen(navController = rootNavController, viewModel = authViewModel)
             }
             composable(Screen.Test.route) {
-                TestScreen()
+                // Assuming TestScreen exists or adding placeholder
+                Surface(modifier = Modifier.fillMaxSize()) { 
+                    Text("หน้าทดสอบ", modifier = Modifier.wrapContentSize()) 
+                }
             }
         }
     }

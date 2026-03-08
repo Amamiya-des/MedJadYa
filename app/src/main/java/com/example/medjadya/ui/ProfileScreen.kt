@@ -1,4 +1,4 @@
-package com.example.medjadya
+package com.example.medjadya.ui
 
 import android.widget.Toast
 import androidx.compose.foundation.Image
@@ -23,25 +23,29 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
+import com.example.medjadya.R
+import com.example.medjadya.navigation.Screen
+import com.example.medjadya.viewmodel.AuthViewModel
 
 @Composable
-fun ProfileScreen(navController: NavHostController, viewModel: StudentViewModel) {
+fun ProfileScreen(navController: NavHostController, viewModel: AuthViewModel) {
     val context = LocalContext.current
-    val sharedPref = SharedPreferencesManager(context)
 
-    val profileResponse = viewModel.studentProfile
+    val profile = viewModel.userProfile
     val errorMsg = viewModel.errorMessage
+    val userId = viewModel.currentUserId
 
     var showLogoutDialog by remember { mutableStateOf(false) }
     var rememberId by remember { mutableStateOf(false) }
 
-    LaunchedEffect(key1 = Unit) {
-        val savedId = sharedPref.getSavedStdId()
-        if (savedId.isNotEmpty()) {
-            viewModel.getProfile(savedId)
+    // Fetch profile when screen opens or when userId changes
+    LaunchedEffect(userId) {
+        if (userId.isNotEmpty()) {
+            viewModel.fetchProfile(userId)
         }
     }
 
@@ -60,7 +64,8 @@ fun ProfileScreen(navController: NavHostController, viewModel: StudentViewModel)
                                 selected = rememberId,
                                 onClick = { rememberId = !rememberId },
                                 role = Role.Checkbox
-                            ),
+                            )
+                            .padding(vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Checkbox(
@@ -78,9 +83,9 @@ fun ProfileScreen(navController: NavHostController, viewModel: StudentViewModel)
                 Button(
                     onClick = {
                         showLogoutDialog = false
-                        sharedPref.logout(rememberId = rememberId)
+                        viewModel.logout(rememberId = rememberId)
                         navController.navigate(Screen.Login.route) {
-                            popUpTo(Screen.Profile.route) { inclusive = true }
+                            popUpTo(0) { inclusive = true }
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0097B2))
@@ -141,29 +146,53 @@ fun ProfileScreen(navController: NavHostController, viewModel: StudentViewModel)
                         painter = painterResource(id = R.drawable.profile),
                         contentDescription = "Profile Picture",
                         modifier = Modifier
-                            .size(100.dp)
+                            .size(80.dp)
                             .clip(RoundedCornerShape(16.dp)),
                         contentScale = ContentScale.Crop
                     )
-                    Spacer(modifier = Modifier.width(20.dp))
-                    Column {
-                        profileResponse?.data?.let { user ->
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        if (profile != null) {
                             Text(
-                                text = user.name ?: "ไม่ทราบชื่อ",
-                                fontSize = 22.sp,
-                                fontWeight = FontWeight.Bold
+                                text = profile.name ?: "ไม่ทราบชื่อ",
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.Black
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = user.email ?: "ไม่ทราบอีเมล",
-                                fontSize = 16.sp,
+                                text = profile.email ?: "ไม่ทราบอีเมล",
+                                fontSize = 14.sp,
                                 color = Color.Gray
                             )
-                        } ?: run {
                             Text(
-                                text = if (errorMsg.isNotEmpty()) errorMsg else "กำลังโหลด...",
-                                fontSize = 16.sp
+                                text = "อายุ: ${profile.age ?: "-"} ปี",
+                                fontSize = 14.sp,
+                                color = Color.Gray
                             )
+                        } else {
+                            if (errorMsg.isNotEmpty()) {
+                                Text(
+                                    text = errorMsg,
+                                    fontSize = 14.sp,
+                                    color = Color.Red
+                                )
+                                TextButton(onClick = { viewModel.fetchProfile(userId) }) {
+                                    Text("ลองใหม่", color = Color(0xFF0097B2))
+                                }
+                            } else {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(24.dp),
+                                    strokeWidth = 2.dp,
+                                    color = Color(0xFF0097B2)
+                                )
+                                Text(
+                                    text = "กำลังโหลดข้อมูล...",
+                                    fontSize = 14.sp,
+                                    color = Color.Gray,
+                                    modifier = Modifier.padding(top = 4.dp)
+                                )
+                            }
                         }
                     }
                 }
@@ -185,24 +214,24 @@ fun ProfileScreen(navController: NavHostController, viewModel: StudentViewModel)
             ) {
                 MenuCard(
                     title = "เตือนให้เติมยา",
-                    subtitle = "ดูการแจ้งเตือน\nตรวจสอบยาที่เหลือน้อย",
+                    subtitle = "ตรวจสอบยา\nที่เหลือน้อย",
                     icon = Icons.Default.Warning,
                     iconColor = Color(0xFFD32F2F),
                     backgroundColor = Color(0xFFFFF3E0),
                     modifier = Modifier.weight(1f),
                     onClick = {
-                        Toast.makeText(context, "เตือนให้เติมยา", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "กำลังพัฒนาระบบเตือนเติมยา", Toast.LENGTH_SHORT).show()
                     }
                 )
                 MenuCard(
                     title = "เตือนความจำ",
-                    subtitle = "ดูการแจ้งเตือน\nที่กำลังเปิดใช้งานอยู่",
+                    subtitle = "ดูการแจ้งเตือน\nที่เปิดใช้งาน",
                     icon = Icons.Default.Notifications,
                     iconColor = Color(0xFF0097B2),
                     backgroundColor = Color.White,
                     modifier = Modifier.weight(1f),
                     onClick = {
-                        Toast.makeText(context, "เตือนความจำ", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "กำลังพัฒนาระบบเตือนความจำ", Toast.LENGTH_SHORT).show()
                     }
                 )
             }
@@ -224,7 +253,6 @@ fun ProfileScreen(navController: NavHostController, viewModel: StudentViewModel)
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
                 Column {
-                    // ปุ่มการแจ้งเตือน
                     SettingsItem(
                         title = "การแจ้งเตือน",
                         subtitle = "เปิด/ปิด การแจ้งเตือนแอป",
@@ -235,11 +263,10 @@ fun ProfileScreen(navController: NavHostController, viewModel: StudentViewModel)
                             navController.navigate(Screen.NotificationSettings.route)
                         }
                     )
-                    Divider(modifier = Modifier.padding(horizontal = 16.dp), color = Color(0xFFEEEEEE))
-                    // ปุ่มแก้ไขโปรไฟล์
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = Color(0xFFEEEEEE))
                     SettingsItem(
                         title = "แก้ไขโปรไฟล์",
-                        subtitle = "แก้ไขชื่อและอีเมลของคุณ",
+                        subtitle = "แก้ไขข้อมูลส่วนตัวของคุณ",
                         icon = Icons.Default.Edit,
                         iconTintColor = Color(0xFF0097B2),
                         iconBgColor = Color(0xFFE1F5FE),
@@ -247,8 +274,7 @@ fun ProfileScreen(navController: NavHostController, viewModel: StudentViewModel)
                             navController.navigate(Screen.EditProfile.route)
                         }
                     )
-                    Divider(modifier = Modifier.padding(horizontal = 16.dp), color = Color(0xFFEEEEEE))
-                    // ปุ่มออกจากระบบ
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = Color(0xFFEEEEEE))
                     SettingsItem(
                         title = "ออกจากระบบ",
                         subtitle = null,
@@ -293,22 +319,23 @@ fun MenuCard(
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                modifier = Modifier.size(40.dp),
+                modifier = Modifier.size(36.dp),
                 tint = iconColor
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = title,
-                fontSize = 18.sp,
+                fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.Black
+                color = Color.Black,
+                textAlign = TextAlign.Center
             )
             Text(
                 text = subtitle,
-                fontSize = 12.sp,
+                fontSize = 11.sp,
                 color = Color.Gray,
-                lineHeight = 16.sp,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                lineHeight = 14.sp,
+                textAlign = TextAlign.Center
             )
         }
     }
@@ -332,7 +359,7 @@ fun SettingsItem(
     ) {
         Box(
             modifier = Modifier
-                .size(48.dp)
+                .size(44.dp)
                 .clip(RoundedCornerShape(12.dp))
                 .background(iconBgColor),
             contentAlignment = Alignment.Center
@@ -340,7 +367,7 @@ fun SettingsItem(
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                modifier = Modifier.size(24.dp),
+                modifier = Modifier.size(22.dp),
                 tint = iconTintColor
             )
         }
@@ -348,22 +375,22 @@ fun SettingsItem(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
-                fontSize = 18.sp,
+                fontSize = 16.sp,
                 fontWeight = FontWeight.Bold
             )
             if (subtitle != null) {
                 Text(
                     text = subtitle,
-                    fontSize = 14.sp,
+                    fontSize = 13.sp,
                     color = Color.Gray
                 )
             }
         }
         Icon(
-            imageVector = Icons.Default.ArrowForward,
+            imageVector = Icons.Default.ArrowForwardIos,
             contentDescription = null,
-            tint = Color.Black,
-            modifier = Modifier.size(20.dp)
+            tint = Color.Gray,
+            modifier = Modifier.size(16.dp)
         )
     }
 }

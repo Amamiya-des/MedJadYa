@@ -29,6 +29,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import com.example.medjadya.SharedPreferencesManager
 import com.example.medjadya.model.Medication
 import com.example.medjadya.network.RetrofitClient
 import com.example.medjadya.notification.AlarmReceiver
@@ -38,6 +39,7 @@ import java.util.*
 @Composable
 fun MedicationScreen() {
     val context = LocalContext.current
+    val sharedPref = SharedPreferencesManager(context)
     var searchQuery by remember { mutableStateOf("") }
     var medications by remember { mutableStateOf<List<Medication>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
@@ -60,31 +62,35 @@ fun MedicationScreen() {
         }
 
         try {
-            val token = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJzdGFtcEBlbWFpbC5jb20iLCJpYXQiOjE3NzI4NzMyMjQsImV4cCI6MTc3Mjk1OTYyNH0.avS-k7YaS_DIOMQQJL-Zg8aEWum9afUACqUCtYLY29A"
-            val meds = RetrofitClient.instance.getMeds(token)
+            val apiService = RetrofitClient.getApiService(context)
+            val response = apiService.getAllMeds()
             
-            val fullMedications = meds.map { med ->
-                val medId = med.id ?: return@map med
-                val instructions = async { RetrofitClient.instance.getInstructions(token, medId) }
-                val schedules = async { RetrofitClient.instance.getSchedules(token, medId) }
+            if (response.isSuccessful) {
+                val meds = response.body() ?: emptyList()
                 
-                val resultMed = med.copy(
-                    instruction = instructions.await().firstOrNull(),
-                    schedules = schedules.await()
-                )
+                val fullMedications = meds.map { med ->
+                    val medId = med.id ?: return@map med
+                    val instructions = async { apiService.getInstructions(medId) }
+                    val schedules = async { apiService.getSchedules(medId) }
+                    
+                    val resultMed = med.copy(
+                        instruction = instructions.await().firstOrNull(),
+                        schedules = schedules.await()
+                    )
 
-                // ตั้งปลุกตามเวลาใน Database
-                resultMed.schedules?.forEach { schedule ->
-                    schedule.time?.let { timeStr ->
-                        Log.d("MedicationScreen", "กำลังตั้งเวลาสำหรับ ${resultMed.name} ที่ $timeStr")
-                        scheduleAlarm(context, resultMed.name ?: "Unknown", timeStr)
+                    // ตั้งปลุกตามเวลาใน Database
+                    resultMed.schedules?.forEach { schedule ->
+                        schedule.time?.let { timeStr ->
+                            Log.d("MedicationScreen", "กำลังตั้งเวลาสำหรับ ${resultMed.name} ที่ $timeStr")
+                            scheduleAlarm(context, resultMed.name ?: "Unknown", timeStr)
+                        }
                     }
-                }
 
-                resultMed
+                    resultMed
+                }
+                
+                medications = fullMedications
             }
-            
-            medications = fullMedications
         } catch (e: Exception) {
             Log.e("MedicationScreen", "Error: ", e)
         } finally {
@@ -171,14 +177,14 @@ private fun scheduleAlarm(context: Context, medName: String, timeStr: String) {
     val parts = timeStr.split(":")
     if (parts.size < 2) return
 
-    val hour = parts[0].toInt()
-    val minute = parts[1].toInt()
+    val hour = try { parts[0].toInt() } catch(e: Exception) { 0 }
+    val minute = try { parts[1].toInt() } catch(e: Exception) { 0 }
 
     val calendar = Calendar.getInstance().apply {
         set(Calendar.HOUR_OF_DAY, hour)
         set(Calendar.MINUTE, minute)
         set(Calendar.SECOND, 0)
-        set(Calendar.MILLISECOND, 0) // สำคัญ: ต้องรีเซ็ต millisecond
+        set(Calendar.MILLISECOND, 0)
 
         if (timeInMillis <= System.currentTimeMillis()) {
             add(Calendar.DAY_OF_YEAR, 1)
@@ -198,17 +204,19 @@ private fun scheduleAlarm(context: Context, medName: String, timeStr: String) {
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )
 
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        if (alarmManager.canScheduleExactAlarms()) {
-            alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, calendar.timeInMillis, pendingIntent)
+    try {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (alarmManager.canScheduleExactAlarms()) {
+                alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, calendar.timeInMillis, pendingIntent)
+            } else {
+                alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, calendar.timeInMillis, pendingIntent)
+            }
         } else {
-            alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, calendar.timeInMillis, pendingIntent)
+            alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, calendar.timeInMillis, pendingIntent)
         }
-    } else {
-        alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, calendar.timeInMillis, pendingIntent)
+    } catch (e: SecurityException) {
+        alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, calendar.timeInMillis, pendingIntent)
     }
-    
-    Log.d("MedicationScreen", "ตั้งเวลาสำเร็จ: $medName ที่ ${calendar.time}")
 }
 
 @Composable

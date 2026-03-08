@@ -1,4 +1,4 @@
-package com.example.medjadya
+package com.example.medjadya.ui
 
 import android.widget.Toast
 import androidx.compose.foundation.layout.*
@@ -7,7 +7,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -21,63 +20,29 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
+import com.example.medjadya.navigation.Screen
+import com.example.medjadya.viewmodel.AuthViewModel
 
 @Composable
-fun RegisterScreen(navController: NavHostController, viewModel: StudentViewModel) {
+fun LoginScreen(navController: NavHostController, viewModel: AuthViewModel) {
     val context = LocalContext.current
-    var name by rememberSaveable { mutableStateOf("") }
-    var age by rememberSaveable { mutableStateOf("") }
-    var email by rememberSaveable { mutableStateOf("") }
+
+    var email by rememberSaveable { mutableStateOf("") } 
     var password by rememberSaveable { mutableStateOf("") }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(all = 24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
     ) {
-        Spacer(modifier = Modifier.height(height = 60.dp))
         Text(
-            text = "Register",
+            text = "Log In",
             fontSize = 32.sp,
-            fontWeight = FontWeight.Medium,
+            fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(bottom = 32.dp)
         )
-
-        // Name
-        OutlinedTextField(
-            value = name,
-            onValueChange = { name = it },
-            label = { Text(text = "Name") },
-            leadingIcon = {
-                Icon(
-                    imageVector = Icons.Default.Person,
-                    contentDescription = null
-                )
-            },
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(size = 8.dp)
-        )
-
-        Spacer(modifier = Modifier.height(height = 16.dp))
-
-        // Age
-        OutlinedTextField(
-            value = age,
-            onValueChange = { if (it.all { char -> char.isDigit() }) age = it },
-            label = { Text(text = "Age") },
-            leadingIcon = {
-                Icon(
-                    imageVector = Icons.Default.Person,
-                    contentDescription = null
-                )
-            },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(size = 8.dp)
-        )
-
-        Spacer(modifier = Modifier.height(height = 16.dp))
 
         // Email
         OutlinedTextField(
@@ -114,32 +79,42 @@ fun RegisterScreen(navController: NavHostController, viewModel: StudentViewModel
             shape = RoundedCornerShape(size = 8.dp)
         )
 
-        Spacer(modifier = Modifier.height(height = 40.dp))
+        Spacer(modifier = Modifier.height(height = 32.dp))
 
-        // Register Button
+        // Login Button
         Button(
             onClick = {
-                val newUser = RegisterClass(
-                    name = name,
-                    age = age.toIntOrNull() ?: 0,
-                    password = password,
-                    email = email
-                )
-                viewModel.register(context, student = newUser) {
-                    Toast.makeText(context, "Registration Successful!", Toast.LENGTH_SHORT).show()
-                    navController.navigate(Screen.Login.route) {
-                        popUpTo(Screen.Register.route) { inclusive = true }
+                viewModel.login(email = email, password = password) {
+                    Toast.makeText(context, "Login Successful", Toast.LENGTH_SHORT).show()
+                    navController.navigate("main_container") {
+                        popUpTo(Screen.Login.route) { inclusive = true }
                     }
                 }
             },
             modifier = Modifier
                 .fillMaxWidth()
-                .height(height = 60.dp),
-            shape = RoundedCornerShape(size = 30.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5C6BC0)),
-            enabled = name.isNotEmpty() && age.isNotEmpty() && email.isNotEmpty() && password.isNotEmpty()
+                .height(height = 56.dp),
+            shape = RoundedCornerShape(size = 28.dp),
+            enabled = email.isNotEmpty() && password.isNotEmpty(),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5C6BC0))
         ) {
-            Text(text = "Register", color = Color.White, fontSize = 18.sp)
+            Text(text = "Login", fontSize = 18.sp)
+        }
+
+        Spacer(modifier = Modifier.height(height = 24.dp))
+
+        // Register link
+        Row(
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(text = "Don't have an account? ", color = Color.Black)
+            TextButton(onClick = { navController.navigate(Screen.Register.route) }) {
+                Text(
+                    text = "Register",
+                    color = Color(color = 0xFF3F51B5),
+                    fontWeight = FontWeight.Bold
+                )
+            }
         }
     }
 }

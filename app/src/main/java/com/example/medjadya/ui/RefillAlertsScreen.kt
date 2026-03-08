@@ -1,4 +1,4 @@
-package com.example.medjadya.ui.screens
+package com.example.medjadya.ui
 
 import android.widget.Toast
 import androidx.compose.foundation.background
@@ -20,79 +20,77 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
-import com.example.medjadya.data.api.ApiClient
-import com.example.medjadya.data.local.SessionStore
-import com.example.medjadya.data.model.MedDto
-import com.example.medjadya.data.model.RefillItemUi
-import com.example.medjadya.data.model.StockStatus
-import com.example.medjadya.data.model.stockStatus
+import com.example.medjadya.model.Medication
+import com.example.medjadya.network.RetrofitClient
 import kotlinx.coroutines.launch
+
+enum class StockStatus { CRITICAL, LOW, OK }
+
+data class RefillItemUi(
+    val id: Int,
+    val name: String,
+    val doseText: String,
+    val remain: Int,
+    val total: Int
+)
+
+fun stockStatus(remain: Int, total: Int): StockStatus {
+    val ratio = if (total > 0) remain.toFloat() / total.toFloat() else 1f
+    return when {
+        ratio <= 0.1f -> StockStatus.CRITICAL
+        ratio <= 0.3f -> StockStatus.LOW
+        else -> StockStatus.OK
+    }
+}
 
 @Composable
 fun RefillAlertsScreen(nav: NavHostController) {
     val ctx = LocalContext.current
-    val store = remember { SessionStore(ctx) }
-    val uid by store.userIdFlow.collectAsState(initial = 0)
     val scope = rememberCoroutineScope()
+    val apiService = remember { RetrofitClient.getApiService(ctx) }
 
-    var meds by remember { mutableStateOf<List<MedDto>>(emptyList()) }
+    var medications by remember { mutableStateOf<List<Medication>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
 
     val refreshData: suspend () -> Unit = {
-        if (uid != 0) {
-            loading = true
-            try {
-                meds = ApiClient.api.getMeds(uid)
-            } catch (_: Exception) {
-                // handle error silently or with a Toast
+        loading = true
+        try {
+            val response = apiService.getAllMeds()
+            if (response.isSuccessful) {
+                medications = response.body() ?: emptyList()
             }
-            loading = false
-        } else {
-            loading = false
+        } catch (_: Exception) {
+            Toast.makeText(ctx, "โหลดข้อมูลไม่สำเร็จ", Toast.LENGTH_SHORT).show()
         }
+        loading = false
     }
 
-    LaunchedEffect(uid) {
+    LaunchedEffect(Unit) {
         refreshData()
     }
 
-    // Correctly map from MedDto to RefillItemUi
-    // According to JSON: remain and total (quantity) are inside the instruction object.
-    val itemsFromDb = meds.map { med ->
+    val uiList = medications.map { med ->
         RefillItemUi(
-            id = med.idMed,
-            name = med.medName ?: "ไม่ระบุชื่อยา",
+            id = med.id ?: 0,
+            name = med.name ?: "ไม่ระบุชื่อยา",
             doseText = med.instruction?.instructions ?: "",
-            remain = med.instruction?.remain ?: 0,
+            remain = med.remainingCount ?: 0,
             total = med.instruction?.quantity ?: 0
         )
     }
 
-    var uiList by remember(itemsFromDb) { mutableStateOf(itemsFromDb) }
-
-    LaunchedEffect(itemsFromDb) {
-        uiList = itemsFromDb
-    }
-
     if (loading) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator()
+            CircularProgressIndicator(color = Color(0xFF12A8D6))
         }
     } else {
         RefillAlertScreenContent(
             items = uiList,
-            onBack = {
-                nav.popBackStack()
-            },
+            onBack = { nav.popBackStack() },
             onRefillClicked = { item ->
                 scope.launch {
-                    try {
-                        ApiClient.api.refill(item.id)
-                        Toast.makeText(ctx, "เติมยาแล้ว", Toast.LENGTH_SHORT).show()
-                        uiList = uiList.filterNot { it.id == item.id }
-                    } catch (_: Exception) {
-                        Toast.makeText(ctx, "เติมยาไม่สำเร็จ", Toast.LENGTH_SHORT).show()
-                    }
+                    // Logic for refill can be added here if there's an API for it
+                    Toast.makeText(ctx, "เติมยาแล้ว (Mock)", Toast.LENGTH_SHORT).show()
                 }
             }
         )
@@ -137,7 +135,6 @@ fun RefillAlertScreenContent(
                 SummaryCard(needRefillCount = needRefillCount)
             }
 
-            // Only show items that actually need refill (LOW or CRITICAL)
             val refillNeededList = items.filter { stockStatus(it.remain, it.total) != StockStatus.OK }
             
             if (refillNeededList.isEmpty()) {

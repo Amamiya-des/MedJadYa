@@ -1,4 +1,4 @@
-package com.example.medjadya
+package com.example.medjadya.ui
 
 import android.widget.Toast
 import androidx.compose.foundation.background
@@ -20,17 +20,28 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
+import com.example.medjadya.viewmodel.AuthViewModel
+import com.example.medjadya.navigation.Screen
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EditProfileScreen(navController: NavHostController, viewModel: StudentViewModel) {
+fun EditProfileScreen(navController: NavHostController, viewModel: AuthViewModel) {
     val context = LocalContext.current
-    val profile = viewModel.studentProfile?.data
+    val profile = viewModel.userProfile
 
     // State สำหรับเก็บค่าที่แก้ไข
     var name by remember { mutableStateOf(profile?.name ?: "") }
     var email by remember { mutableStateOf(profile?.email ?: "") }
     var age by remember { mutableStateOf(profile?.age?.toString() ?: "") }
+
+    // Sync state when profile data is loaded
+    LaunchedEffect(profile) {
+        profile?.let {
+            name = it.name ?: ""
+            email = it.email ?: ""
+            age = it.age?.toString() ?: ""
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -146,8 +157,7 @@ fun EditProfileScreen(navController: NavHostController, viewModel: StudentViewMo
                 onClick = {
                     if (name.isNotEmpty() && email.isNotEmpty() && age.isNotEmpty()) {
                         profile?.idUser?.let { id ->
-                            // ส่งค่า age ไปด้วย
-                            viewModel.updateProfile(id.toString(), name, email, age) {
+                            viewModel.updateProfile(context, id.toString(), name, email, age) {
                                 Toast.makeText(context, "บันทึกการแก้ไข", Toast.LENGTH_SHORT).show()
                                 navController.popBackStack() 
                             }

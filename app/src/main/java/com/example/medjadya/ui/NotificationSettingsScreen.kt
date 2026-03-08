@@ -1,4 +1,4 @@
-package com.example.medjadya
+package com.example.medjadya.ui
 
 import android.widget.Toast
 import androidx.compose.foundation.background

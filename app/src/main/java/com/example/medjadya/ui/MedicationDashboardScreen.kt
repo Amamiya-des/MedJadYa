@@ -1,6 +1,5 @@
-package com.example.medjadya.ui.screens
+package com.example.medjadya.ui
 
-import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -17,26 +16,29 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.medjadya.data.model.Medication
-import com.example.medjadya.data.model.TimeSlot
+import com.example.medjadya.model.Medication
+import com.example.medjadya.model.TimeSlot
+import com.example.medjadya.viewmodel.MedicationViewModel
 import java.util.Calendar
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MedicationDashboardScreen(
-    viewModel: MedicationViewModel = viewModel()
-) {
+fun MedicationDashboardScreen() {
+    val context = LocalContext.current
+    val viewModel: MedicationViewModel = viewModel { MedicationViewModel(context) }
+    
     val medications by viewModel.medications.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val currentTime by viewModel.currentTime.collectAsState()
     var expandedSlot by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
-        viewModel.fetchMedications()
+        viewModel.fetchMedications(showLoading = true)
     }
 
     Scaffold(
@@ -49,7 +51,7 @@ fun MedicationDashboardScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { viewModel.fetchMedications() }) {
+                    IconButton(onClick = { viewModel.fetchMedications(showLoading = true) }) {
                         Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = Color.White)
                     }
                 },
@@ -84,8 +86,8 @@ fun MedicationDashboardScreen(
                             currentTime = currentTime,
                             isExpanded = expandedSlot == title,
                             onToggle = { expandedSlot = if (expandedSlot == title) null else title },
-                            onTakeClick = { viewModel.takeMedicine(it) },
-                            onMissed = { viewModel.markAsMissed(it) }
+                            onTakeClick = { med -> med.id?.let { viewModel.takeMedicine(it) } },
+                            onMissed = { medId -> viewModel.markAsMissed(medId) }
                         )
                     }
                 }
@@ -134,14 +136,12 @@ fun TimeSlotDropdownCard(
                     }
                 } else {
                     medications.forEach { med -> 
-                        key(med.id, med.time, med.hour) {
-                            MedicationItemRow(
-                                medication = med, 
-                                currentTime = currentTime,
-                                onTakeClick = onTakeClick,
-                                onMissed = onMissed
-                            )
-                        }
+                        MedicationItemRow(
+                            medication = med, 
+                            currentTime = currentTime,
+                            onTakeClick = onTakeClick,
+                            onMissed = onMissed
+                        )
                     }
                 }
             }
@@ -161,13 +161,12 @@ fun MedicationItemRow(
     
     var isProcessing by remember(medication) { mutableStateOf(false) }
 
-    val isOverdue = remember(isTaken, medication.status, medication.time, medication.hour, currentTime) {
-        if (isTaken) return@remember false
-        val timeStr = medication.time ?: medication.hour ?: return@remember false
+    val schedule = medication.schedules?.firstOrNull()
+    val isOverdue = remember(medication, currentTime) {
+        val timeStr = schedule?.time ?: return@remember false
         try {
-            val parts = timeStr.substringBefore(':').trim().split(' ').last()
-            val medHour = parts.toInt()
-            val medMinute = try { timeStr.split(":")[1].take(2).toInt() } catch(e: Exception) { 0 }
+            val medHour = timeStr.substringBefore(':').toInt()
+            val medMinute = timeStr.substringAfter(':').substringBefore(':').toInt()
             val now = Calendar.getInstance()
             now.timeInMillis = currentTime
             val currentHour = now.get(Calendar.HOUR_OF_DAY)
@@ -179,12 +178,6 @@ fun MedicationItemRow(
     }
 
     val showAsMissed = !isTaken && (isMissedInStatus || isOverdue)
-
-    LaunchedEffect(isOverdue) {
-        if (isOverdue && medication.status == null) {
-            onMissed(medication.id)
-        }
-    }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -198,7 +191,7 @@ fun MedicationItemRow(
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = "${medication.time?.take(5) ?: medication.hour?.take(5) ?: "ไม่ระบุเวลา"} น.",
+                        text = "${schedule?.time?.take(5) ?: "ไม่ระบุเวลา"} น.",
                         fontSize = 12.sp,
                         color = if (showAsMissed) Color.Red else Color(0xFF0097B2),
                         fontWeight = FontWeight.Bold
@@ -208,7 +201,7 @@ fun MedicationItemRow(
                         Text(text = "• ลืมทาน!", fontSize = 12.sp, color = Color.Red, fontWeight = FontWeight.Bold)
                     }
                 }
-                Text(text = medication.name, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text(text = medication.name ?: "Unknown", fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 Text(text = "${medication.dosage ?: ""} ${medication.form ?: "เม็ด"}", fontSize = 14.sp, color = Color.Gray)
             }
             

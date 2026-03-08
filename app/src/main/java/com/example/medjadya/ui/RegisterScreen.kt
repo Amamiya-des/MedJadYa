@@ -1,4 +1,4 @@
-package com.example.medjadya
+package com.example.medjadya.ui
 
 import android.widget.Toast
 import androidx.compose.foundation.layout.*
@@ -7,6 +7,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -20,50 +21,66 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
+import com.example.medjadya.model.RegisterRequest
+import com.example.medjadya.navigation.Screen
+import com.example.medjadya.viewmodel.AuthViewModel
 
 @Composable
-fun LoginScreen(navController: NavHostController, viewModel: StudentViewModel) {
+fun RegisterScreen(navController: NavHostController, viewModel: AuthViewModel) {
     val context = LocalContext.current
-    val sharedPref = SharedPreferencesManager(context)
-
-    // แก้ไข: ให้ email เริ่มต้นเป็นค่าว่างเสมอ (ไม่ดึงจาก SharedPreferences)
-    var email by rememberSaveable { mutableStateOf("") } 
+    var name by rememberSaveable { mutableStateOf("") }
+    var age by rememberSaveable { mutableStateOf("") }
+    var email by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
-    val loginResult = viewModel.loginResult
-
-    LaunchedEffect(key1 = loginResult) {
-        loginResult?.let {
-            if (!it.error) {
-                sharedPref.saveLoginStatus(
-                    isLoggedIn = true,
-                    stdId = it.idUser.toString(), // เก็บ idUser ไว้ใช้ในหน้า Profile
-                    role = it.name ?: ""
-                )
-                viewModel.resetLoginResult()
-                Toast.makeText(context, "Login Successful", Toast.LENGTH_SHORT).show()
-                navController.navigate(Screen.Profile.route) {
-                    popUpTo(Screen.Login.route) { inclusive = true }
-                }
-            } else {
-                viewModel.resetLoginResult()
-                Toast.makeText(context, it.message ?: "Login Failed", Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(all = 24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        Spacer(modifier = Modifier.height(height = 60.dp))
         Text(
-            text = "Log In",
+            text = "Register",
             fontSize = 32.sp,
-            fontWeight = FontWeight.Bold,
+            fontWeight = FontWeight.Medium,
             modifier = Modifier.padding(bottom = 32.dp)
         )
+
+        // Name
+        OutlinedTextField(
+            value = name,
+            onValueChange = { name = it },
+            label = { Text(text = "Name") },
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Default.Person,
+                    contentDescription = null
+                )
+            },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(size = 8.dp)
+        )
+
+        Spacer(modifier = Modifier.height(height = 16.dp))
+
+        // Age
+        OutlinedTextField(
+            value = age,
+            onValueChange = { if (it.all { char -> char.isDigit() }) age = it },
+            label = { Text(text = "Age") },
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Default.Person,
+                    contentDescription = null
+                )
+            },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(size = 8.dp)
+        )
+
+        Spacer(modifier = Modifier.height(height = 16.dp))
 
         // Email
         OutlinedTextField(
@@ -100,37 +117,23 @@ fun LoginScreen(navController: NavHostController, viewModel: StudentViewModel) {
             shape = RoundedCornerShape(size = 8.dp)
         )
 
-        Spacer(modifier = Modifier.height(height = 32.dp))
+        Spacer(modifier = Modifier.height(height = 40.dp))
 
-        // Login Button
+        // Register Button
         Button(
             onClick = {
-                viewModel.login(email = email, password = password)
+                // Assuming viewModel has a register function that takes RegisterRequest
+                Toast.makeText(context, "Registration logic goes here", Toast.LENGTH_SHORT).show()
+                navController.navigate(Screen.Login.route)
             },
             modifier = Modifier
                 .fillMaxWidth()
-                .height(height = 56.dp),
-            shape = RoundedCornerShape(size = 28.dp),
-            enabled = email.isNotEmpty() && password.isNotEmpty(),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5C6BC0))
+                .height(height = 60.dp),
+            shape = RoundedCornerShape(size = 30.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5C6BC0)),
+            enabled = name.isNotEmpty() && age.isNotEmpty() && email.isNotEmpty() && password.isNotEmpty()
         ) {
-            Text(text = "Login", fontSize = 18.sp)
-        }
-
-        Spacer(modifier = Modifier.height(height = 24.dp))
-
-        // Register link
-        Row(
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(text = "Don't have an account? ", color = Color.Black)
-            TextButton(onClick = { navController.navigate(Screen.Register.route) }) {
-                Text(
-                    text = "Register",
-                    color = Color(color = 0xFF3F51B5),
-                    fontWeight = FontWeight.Bold
-                )
-            }
+            Text(text = "Register", color = Color.White, fontSize = 18.sp)
         }
     }
 }

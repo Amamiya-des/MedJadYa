@@ -1,6 +1,5 @@
-package com.example.medjadya.ui.screens
+package com.example.medjadya.ui
 
-import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -15,21 +14,25 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.medjadya.data.model.Medication
-import com.example.medjadya.data.model.TimeSlot
+import com.example.medjadya.model.Medication
+import com.example.medjadya.model.TimeSlot
+import com.example.medjadya.viewmodel.MedicationViewModel
 import java.util.Calendar
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MedicationListScreen(
     timeSlot: TimeSlot,
-    viewModel: MedicationViewModel = viewModel(),
     onBack: () -> Unit
 ) {
+    val context = LocalContext.current
+    val viewModel: MedicationViewModel = viewModel { MedicationViewModel(context) }
+    
     val allMedications by viewModel.medications.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val currentTime by viewModel.currentTime.collectAsState()
@@ -85,13 +88,15 @@ fun MedicationListScreen(
                         .padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    items(medications, key = { it.id.toString() + (it.time ?: it.hour ?: "") }) { medication ->
+                    items(medications, key = { it.id.toString() + (it.schedules?.firstOrNull()?.time ?: "") }) { medication ->
                         MedicationListItem(
                             medication = medication,
                             currentTime = currentTime,
-                            onTakeClick = { viewModel.takeMedicine(medication) },
+                            onTakeClick = { medication.id?.let { viewModel.takeMedicine(it) } },
                             onMissed = { medId -> viewModel.markAsMissed(medId) },
-                            onAddExtraClick = { viewModel.addExtraDose(medication.id) }
+                            onAddExtraClick = { 
+                                // viewModel.addExtraDose not implemented in VM yet
+                            }
                         )
                     }
                     
@@ -129,16 +134,17 @@ fun MedicationListItem(
     val isMissedInStatus = medication.isMissedStatus
     
     // ทริกเกอร์ให้แสดงสถานะ "กำลังบันทึก" ทันทีที่กด
-    var isProcessingLocal by remember(medication.status, medication.id) { mutableStateOf(false) }
+    var isProcessingLocal by remember(medication.id) { mutableStateOf(false) }
 
-    val isOverdue = remember(isTaken, medication.status, medication.time, medication.hour, currentTime) {
+    val schedule = medication.schedules?.firstOrNull()
+    val isOverdue = remember(isTaken, medication.status, schedule, currentTime) {
         if (isTaken) return@remember false
         
-        val timeStr = medication.time ?: medication.hour ?: return@remember false
+        val timeStr = schedule?.time ?: schedule?.hour ?: return@remember false
         try {
-            val parts = timeStr.substringBefore(':').trim().split(' ').last()
-            val medHour = parts.toInt()
-            val medMinute = try { timeStr.split(":")[1].take(2).toInt() } catch(e: Exception) { 0 }
+            val parts = timeStr.split(":")
+            val medHour = parts[0].toInt()
+            val medMinute = try { parts[1].toInt() } catch(e: Exception) { 0 }
             
             val now = Calendar.getInstance()
             now.timeInMillis = currentTime
@@ -155,7 +161,7 @@ fun MedicationListItem(
 
     LaunchedEffect(isOverdue) {
         if (isOverdue && medication.status == null) {
-            onMissed(medication.id)
+            medication.id?.let { onMissed(it) }
         }
     }
 
@@ -170,8 +176,9 @@ fun MedicationListItem(
         Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    val displayTime = schedule?.time?.take(5) ?: schedule?.hour?.take(5) ?: "--:--"
                     Text(
-                        text = "${medication.time?.take(5) ?: medication.hour?.take(5) ?: "--:--"} น.",
+                        text = "$displayTime น.",
                         fontSize = 14.sp, 
                         color = if (showAsMissed) Color.Red else Color(0xFF0097B2),
                         fontWeight = FontWeight.Bold
@@ -182,9 +189,9 @@ fun MedicationListItem(
                     }
                 }
                 Spacer(modifier = Modifier.height(4.dp))
-                Text(medication.name, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text(medication.name ?: "ไม่ระบุชื่อ", fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 Text("${medication.dosage ?: ""} ${medication.form ?: "เม็ด"}", fontSize = 14.sp, color = Color.Gray)
-                Text(medication.instruction ?: "ทานตามปกติ", fontSize = 14.sp, color = Color.Gray)
+                Text(medication.instruction?.instructions ?: "ทานตามปกติ", fontSize = 14.sp, color = Color.Gray)
             }
             
             Button(
@@ -212,7 +219,7 @@ fun MedicationListItem(
             }
 
             // ปุ่มพิเศษสำหรับยาที่มีชื่อคัดกรอง (เช่น วิตามิน C)
-            if (medication.name.contains("C", ignoreCase = true)) {
+            if (medication.name?.contains("C", ignoreCase = true) == true) {
                 Spacer(modifier = Modifier.width(8.dp))
                 FloatingActionButton(
                     onClick = onAddExtraClick,
