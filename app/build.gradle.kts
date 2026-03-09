@@ -88,6 +88,9 @@ dependencies {
     implementation(libs.gson)
     implementation(libs.androidx.camera.camera2.pipe)
 
+    // DataStore
+    implementation(libs.androidx.datastore.preferences)
+
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

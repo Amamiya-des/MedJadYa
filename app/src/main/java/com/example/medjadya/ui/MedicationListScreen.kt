@@ -14,7 +14,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -28,16 +27,13 @@ import java.util.Calendar
 @Composable
 fun MedicationListScreen(
     timeSlot: TimeSlot,
+    viewModel: MedicationViewModel,
     onBack: () -> Unit
 ) {
-    val context = LocalContext.current
-    val viewModel: MedicationViewModel = viewModel { MedicationViewModel(context) }
-    
     val allMedications by viewModel.medications.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val currentTime by viewModel.currentTime.collectAsState()
-    
-    // ดึงข้อมูลใหม่เมื่อเปิดหน้านี้
+
     LaunchedEffect(timeSlot) {
         viewModel.fetchMedications(showLoading = true)
     }
@@ -77,7 +73,6 @@ fun MedicationListScreen(
             .background(backgroundColor)
         ) {
             if (isLoading && medications.isEmpty()) {
-                // แสดงตัวโหลดเฉพาะตอนที่ยังไม่มีข้อมูลเลย
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = Color(0xFF0097B2))
                 }
@@ -88,18 +83,17 @@ fun MedicationListScreen(
                         .padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    items(medications, key = { it.id.toString() + (it.schedules?.firstOrNull()?.time ?: "") }) { medication ->
+                    items(medications, key = { med -> med.id.toString() + med.schedules?.firstOrNull()?.let { it.time ?: it.hour } }) {
+                         medication ->
                         MedicationListItem(
                             medication = medication,
                             currentTime = currentTime,
                             onTakeClick = { medication.id?.let { viewModel.takeMedicine(it) } },
                             onMissed = { medId -> viewModel.markAsMissed(medId) },
-                            onAddExtraClick = { 
-                                // viewModel.addExtraDose not implemented in VM yet
-                            }
+                            onAddExtraClick = { viewModel.addExtraDose(medication.id) }
                         )
                     }
-                    
+
                     if (medications.isEmpty()) {
                         item {
                             Box(modifier = Modifier.fillMaxWidth().padding(top = 32.dp), contentAlignment = Alignment.Center) {
@@ -109,8 +103,7 @@ fun MedicationListScreen(
                     }
                 }
             }
-            
-            // แถบโหลดด้านบนเมื่อมีการรีเฟรชข้อมูลเบื้องหลัง
+
             if (isLoading && medications.isNotEmpty()) {
                 LinearProgressIndicator(
                     modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter),
@@ -132,25 +125,24 @@ fun MedicationListItem(
 ) {
     val isTaken = medication.isTaken
     val isMissedInStatus = medication.isMissedStatus
-    
-    // ทริกเกอร์ให้แสดงสถานะ "กำลังบันทึก" ทันทีที่กด
-    var isProcessingLocal by remember(medication.id) { mutableStateOf(false) }
 
-    val schedule = medication.schedules?.firstOrNull()
-    val isOverdue = remember(isTaken, medication.status, schedule, currentTime) {
+    var isProcessingLocal by remember(medication.status, medication.id) { mutableStateOf(false) }
+
+    val medTimeStr = medication.schedules?.firstOrNull()?.let { it.time ?: it.hour } ?: "--:--"
+
+    val isOverdue = remember(isTaken, medication.status, medTimeStr, currentTime) {
         if (isTaken) return@remember false
-        
-        val timeStr = schedule?.time ?: schedule?.hour ?: return@remember false
+
         try {
-            val parts = timeStr.split(":")
-            val medHour = parts[0].toInt()
-            val medMinute = try { parts[1].toInt() } catch(e: Exception) { 0 }
-            
+            val parts = medTimeStr.substringBefore(':').trim().split(' ').last()
+            val medHour = parts.toInt()
+            val medMinute = try { medTimeStr.split(":")[1].take(2).toInt() } catch(e: Exception) { 0 }
+
             val now = Calendar.getInstance()
             now.timeInMillis = currentTime
             val currentHour = now.get(Calendar.HOUR_OF_DAY)
             val currentMinute = now.get(Calendar.MINUTE)
-            
+
             if (currentHour > medHour) true
             else if (currentHour == medHour && currentMinute > medMinute) true
             else false
@@ -160,8 +152,8 @@ fun MedicationListItem(
     val showAsMissed = !isTaken && (isMissedInStatus || isOverdue)
 
     LaunchedEffect(isOverdue) {
-        if (isOverdue && medication.status == null) {
-            medication.id?.let { onMissed(it) }
+        if (isOverdue && medication.status == null && medication.id != null) {
+            onMissed(medication.id)
         }
     }
 
@@ -176,10 +168,9 @@ fun MedicationListItem(
         Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    val displayTime = schedule?.time?.take(5) ?: schedule?.hour?.take(5) ?: "--:--"
                     Text(
-                        text = "$displayTime น.",
-                        fontSize = 14.sp, 
+                        text = "${medTimeStr.take(5)} น.",
+                        fontSize = 14.sp,
                         color = if (showAsMissed) Color.Red else Color(0xFF0097B2),
                         fontWeight = FontWeight.Bold
                     )
@@ -189,11 +180,11 @@ fun MedicationListItem(
                     }
                 }
                 Spacer(modifier = Modifier.height(4.dp))
-                Text(medication.name ?: "ไม่ระบุชื่อ", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text(medication.name ?: "ไม่ระบุชื่อยา", fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 Text("${medication.dosage ?: ""} ${medication.form ?: "เม็ด"}", fontSize = 14.sp, color = Color.Gray)
                 Text(medication.instruction?.instructions ?: "ทานตามปกติ", fontSize = 14.sp, color = Color.Gray)
             }
-            
+
             Button(
                 onClick = {
                     isProcessingLocal = true
@@ -212,13 +203,12 @@ fun MedicationListItem(
                         isProcessingLocal -> "กำลังบันทึก..."
                         showAsMissed -> "ทานตอนนี้"
                         else -> "ทานยา"
-                    }, 
+                    },
                     color = Color.White,
                     fontSize = 14.sp
                 )
             }
 
-            // ปุ่มพิเศษสำหรับยาที่มีชื่อคัดกรอง (เช่น วิตามิน C)
             if (medication.name?.contains("C", ignoreCase = true) == true) {
                 Spacer(modifier = Modifier.width(8.dp))
                 FloatingActionButton(

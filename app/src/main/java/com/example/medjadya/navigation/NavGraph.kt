@@ -33,5 +33,8 @@ fun NavGraph(navController: NavHostController) {
         composable(Screen.NotificationSettings.route) {
             NotificationSettingsScreen(navController)
         }
+        composable(Screen.RefillAlerts.route) {
+            RefillAlertsScreen(navController)
+        }
     }
 }

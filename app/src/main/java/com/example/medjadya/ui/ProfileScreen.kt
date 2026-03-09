@@ -73,7 +73,7 @@ fun ProfileScreen(navController: NavHostController, viewModel: AuthViewModel) {
                             onCheckedChange = { rememberId = it }
                         )
                         Text(
-                            text = "จดจำรหัสผู้ใช้ของฉัน",
+                            text = "จดจำชื่อผู้ใช้ของฉัน",
                             modifier = Modifier.padding(start = 8.dp)
                         )
                     }
@@ -83,7 +83,7 @@ fun ProfileScreen(navController: NavHostController, viewModel: AuthViewModel) {
                 Button(
                     onClick = {
                         showLogoutDialog = false
-                        viewModel.logout(rememberId = rememberId)
+                        viewModel.logout(rememberUser = rememberId)
                         navController.navigate(Screen.Login.route) {
                             popUpTo(0) { inclusive = true }
                         }
@@ -220,7 +220,7 @@ fun ProfileScreen(navController: NavHostController, viewModel: AuthViewModel) {
                     backgroundColor = Color(0xFFFFF3E0),
                     modifier = Modifier.weight(1f),
                     onClick = {
-                        Toast.makeText(context, "กำลังพัฒนาระบบเตือนเติมยา", Toast.LENGTH_SHORT).show()
+                        navController.navigate(Screen.RefillAlerts.route)
                     }
                 )
                 MenuCard(

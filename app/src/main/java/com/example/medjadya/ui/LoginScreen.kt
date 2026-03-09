@@ -27,7 +27,7 @@ import com.example.medjadya.viewmodel.AuthViewModel
 fun LoginScreen(navController: NavHostController, viewModel: AuthViewModel) {
     val context = LocalContext.current
 
-    var email by rememberSaveable { mutableStateOf("") } 
+    var email by rememberSaveable { mutableStateOf(viewModel.getSavedEmail()) } 
     var password by rememberSaveable { mutableStateOf("") }
 
     Column(

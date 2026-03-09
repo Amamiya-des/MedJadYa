@@ -5,23 +5,26 @@ import androidx.datastore.preferences.core.*
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.map
 
-private val Context.ds by preferencesDataStore("session")
+private val Context.dataStore by preferencesDataStore("session")
 
 class SessionStore(private val context: Context) {
-  private val KEY_UID = intPreferencesKey("uid")
-  private val KEY_NAME = stringPreferencesKey("name")
-  private val KEY_EMAIL = stringPreferencesKey("email")
+    private val keyUid = intPreferencesKey("uid")
+    private val keyName = stringPreferencesKey("name")
+    private val keyEmail = stringPreferencesKey("email")
 
-  val userIdFlow = context.ds.data.map { it[KEY_UID] ?: 0 }
-  val nameFlow = context.ds.data.map { it[KEY_NAME] ?: "" }
-  val emailFlow = context.ds.data.map { it[KEY_EMAIL] ?: "" }
+    val userIdFlow = context.dataStore.data.map { it[keyUid] ?: 0 }
+    val nameFlow = context.dataStore.data.map { it[keyName] ?: "" }
+    val emailFlow = context.dataStore.data.map { it[keyEmail] ?: "" }
 
-  suspend fun save(uid: Int, name: String, email: String) {
-    context.ds.edit {
-      it[KEY_UID] = uid
-      it[KEY_NAME] = name
-      it[KEY_EMAIL] = email
+    suspend fun save(uid: Int, name: String, email: String) {
+        context.dataStore.edit { preferences ->
+            preferences[keyUid] = uid
+            preferences[keyName] = name
+            preferences[keyEmail] = email
+        }
     }
-  }
-  suspend fun clear() { context.ds.edit { it.clear() } }
+
+    suspend fun clear() {
+        context.dataStore.edit { it.clear() }
+    }
 }

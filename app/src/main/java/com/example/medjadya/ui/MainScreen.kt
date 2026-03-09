@@ -1,29 +1,38 @@
 package com.example.medjadya.ui
 
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import com.example.medjadya.model.TimeSlot
 import com.example.medjadya.navigation.Screen
 import com.example.medjadya.navigation.bottomNavItems
 import com.example.medjadya.viewmodel.AuthViewModel
+import com.example.medjadya.viewmodel.MedicationViewModel
+import com.example.medjadya.viewmodel.MedicationViewModelFactory
 
 @Composable
 fun MainScreen(rootNavController: NavHostController, authViewModel: AuthViewModel) {
+    val context = LocalContext.current
+    val medicationViewModel: MedicationViewModel = viewModel(
+        factory = MedicationViewModelFactory(context)
+    )
     val bottomNavController = rememberNavController()
     
     Scaffold(
@@ -66,7 +75,7 @@ fun MainScreen(rootNavController: NavHostController, authViewModel: AuthViewMode
                 containerColor = Color(0xFF1E9EBD),
                 contentColor = Color.White
             ) {
-                Icon(Icons.Default.Settings, contentDescription = "Test Screen")
+                Icon(Icons.Default.Add, contentDescription = "Add Medication")
             }
         }
     ) { innerPadding ->
@@ -76,26 +85,37 @@ fun MainScreen(rootNavController: NavHostController, authViewModel: AuthViewMode
             modifier = Modifier.padding(innerPadding)
         ) {
             composable(Screen.Home.route) { 
-                Surface(modifier = Modifier.fillMaxSize()) { 
-                    Text("หน้าหลัก", modifier = Modifier.wrapContentSize()) 
-                }
+                MedicationDashboardScreen(viewModel = medicationViewModel, navController = bottomNavController)
             }
             composable(Screen.Medicine.route) { 
                 MedicationScreen() 
             }
             composable(Screen.Record.route) { 
-                Surface(modifier = Modifier.fillMaxSize()) { 
-                    Text("บันทึก", modifier = Modifier.wrapContentSize()) 
-                }
+                val userId = authViewModel.currentUserId.toIntOrNull() ?: 0
+                RecordScreen(userId = userId)
             }
             composable(Screen.Profile.route) { 
                 ProfileScreen(navController = rootNavController, viewModel = authViewModel)
             }
             composable(Screen.Test.route) {
-                // Assuming TestScreen exists or adding placeholder
-                Surface(modifier = Modifier.fillMaxSize()) { 
-                    Text("หน้าทดสอบ", modifier = Modifier.wrapContentSize()) 
+                InsertScreen(navController = bottomNavController, viewModel = medicationViewModel)
+            }
+            // Add missing route for Medication List
+            composable(
+                route = "medication_list/{slot}",
+                arguments = listOf(navArgument("slot") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val slotName = backStackEntry.arguments?.getString("slot")
+                val timeSlot = try {
+                    TimeSlot.valueOf(slotName ?: "MORNING")
+                } catch (e: Exception) {
+                    TimeSlot.MORNING
                 }
+                MedicationListScreen(
+                    timeSlot = timeSlot,
+                    viewModel = medicationViewModel,
+                    onBack = { bottomNavController.popBackStack() }
+                )
             }
         }
     }
