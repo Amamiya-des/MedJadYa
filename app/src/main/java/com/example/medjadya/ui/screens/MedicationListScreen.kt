@@ -34,7 +34,6 @@ fun MedicationListScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val currentTime by viewModel.currentTime.collectAsState()
     
-    // ดึงข้อมูลใหม่เมื่อเปิดหน้านี้
     LaunchedEffect(timeSlot) {
         viewModel.fetchMedications(showLoading = true)
     }
@@ -48,6 +47,7 @@ fun MedicationListScreen(
         TimeSlot.LUNCH -> "มื้อเที่ยง" to Color(0xFFFFF5E6)
         TimeSlot.EVENING -> "มื้อเย็น" to Color(0xFFE6F7FF)
         TimeSlot.BEFORE_BED -> "ก่อนนอน" to Color(0xFFF0E6FF)
+        TimeSlot.HOURLY -> "รายชั่วโมง" to Color(0xFFFFFDE7) // สีเหลืองอ่อนสำหรับรายชั่วโมง
     }
 
     Scaffold(
@@ -74,7 +74,6 @@ fun MedicationListScreen(
             .background(backgroundColor)
         ) {
             if (isLoading && medications.isEmpty()) {
-                // แสดงตัวโหลดเฉพาะตอนที่ยังไม่มีข้อมูลเลย
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = Color(0xFF0097B2))
                 }
@@ -105,7 +104,6 @@ fun MedicationListScreen(
                 }
             }
             
-            // แถบโหลดด้านบนเมื่อมีการรีเฟรชข้อมูลเบื้องหลัง
             if (isLoading && medications.isNotEmpty()) {
                 LinearProgressIndicator(
                     modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter),
@@ -128,7 +126,6 @@ fun MedicationListItem(
     val isTaken = medication.isTaken
     val isMissedInStatus = medication.isMissedStatus
     
-    // ทริกเกอร์ให้แสดงสถานะ "กำลังบันทึก" ทันทีที่กด
     var isProcessingLocal by remember(medication.status, medication.id) { mutableStateOf(false) }
 
     val isOverdue = remember(isTaken, medication.status, medication.time, medication.hour, currentTime) {
@@ -211,7 +208,6 @@ fun MedicationListItem(
                 )
             }
 
-            // ปุ่มพิเศษสำหรับยาที่มีชื่อคัดกรอง (เช่น วิตามิน C)
             if (medication.name.contains("C", ignoreCase = true)) {
                 Spacer(modifier = Modifier.width(8.dp))
                 FloatingActionButton(

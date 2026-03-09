@@ -3,7 +3,7 @@ package com.example.medjadya.data.model
 import com.google.gson.annotations.SerializedName
 
 enum class TimeSlot {
-    MORNING, LUNCH, EVENING, BEFORE_BED
+    MORNING, LUNCH, EVENING, BEFORE_BED, HOURLY
 }
 
 data class Medication(

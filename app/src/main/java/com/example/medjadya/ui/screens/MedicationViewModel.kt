@@ -37,7 +37,7 @@ class MedicationViewModel : ViewModel() {
     private fun startClock() {
         viewModelScope.launch {
             while (true) {
-                delay(30000) // อัปเดตเวลาทุก 30 วินาที เพื่อให้ UI ตรวจสอบสถานะ Overdue ได้แม่นยำขึ้น
+                delay(30000)
                 _currentTime.value = System.currentTimeMillis()
             }
         }
@@ -46,11 +46,11 @@ class MedicationViewModel : ViewModel() {
     fun startRealtimeUpdates() {
         pollingJob?.cancel()
         pollingJob = viewModelScope.launch {
-            var firstLoad = true
+            var isFirst = true
             while (true) {
-                performFetch(showLoading = firstLoad)
-                firstLoad = false
-                delay(5000) // Polling ทุก 5 วินาที
+                performFetch(showLoading = isFirst)
+                isFirst = false
+                delay(10000)
             }
         }
     }
@@ -64,7 +64,6 @@ class MedicationViewModel : ViewModel() {
     private suspend fun performFetch(showLoading: Boolean) {
         if (showLoading) _isLoading.value = true
         try {
-            Log.d("MedicationViewModel", "Fetching medications...")
             val medsResponse = RetrofitClient.api.getAllMeds()
             if (medsResponse.isSuccessful) {
                 val baseMeds = medsResponse.body() ?: emptyList()
@@ -90,6 +89,7 @@ class MedicationViewModel : ViewModel() {
                                     med.copy(
                                         time = sch.time,
                                         hour = sch.hour,
+                                        type = sch.type,
                                         status = finalStatus,
                                         logId = finalLogId
                                     )
@@ -101,71 +101,56 @@ class MedicationViewModel : ViewModel() {
                     }
                 }
                 _medications.value = resultList
-                Log.d("MedicationViewModel", "Successfully updated ${resultList.size} items")
-            } else {
-                Log.e("MedicationViewModel", "API Error: ${medsResponse.code()} ${medsResponse.message()}")
             }
         } catch (e: Exception) {
-            Log.e("MedicationViewModel", "Network/Parse Error: ${e.message}")
+            Log.e("MedicationVM", "Fetch Error: ${e.message}")
         } finally {
             if (showLoading) _isLoading.value = false
         }
     }
 
     fun getMedsForTimeSlot(slot: TimeSlot): List<Medication> {
-        return medications.value.filter { med ->
-            val timeStr = med.time ?: med.hour ?: return@filter false
-            val hour = try {
-                val cleaned = timeStr.substringBefore(':').trim()
-                val parts = cleaned.split(' ')
-                parts.last().toInt()
+        val currentMeds = medications.value
+        return currentMeds.filter { med ->
+            // 1. เงื่อนไขสำหรับ "รายชั่วโมง" (HOURLY)
+            // ใช้ hour เมื่อ time และ type เป็น NULL
+            if (slot == TimeSlot.HOURLY) {
+                return@filter med.time == null && med.type == null && med.hour != null
+            }
+
+            // 2. เงื่อนไขสำหรับหมวดปกติ (เช้า, เที่ยง, เย็น, ก่อนนอน)
+            // บังคับใช้เฉพาะฟิลด์ 'time' เท่านั้น (ถ้า time เป็น null จะไม่แสดงในหมวดเหล่านี้)
+            val timeStr = med.time ?: return@filter false
+            
+            val hourValue = try {
+                timeStr.substringBefore(':').trim().toInt()
             } catch (e: Exception) { -1 }
 
-            if (hour == -1) return@filter false
+            if (hourValue == -1) return@filter false
 
             when (slot) {
-                TimeSlot.MORNING -> hour in 5..10
-                TimeSlot.LUNCH -> hour in 11..14
-                TimeSlot.EVENING -> hour in 15..19
-                TimeSlot.BEFORE_BED -> hour in 20..23 || hour in 0..4
+                TimeSlot.MORNING -> hourValue in 5..10
+                TimeSlot.LUNCH -> hourValue in 11..14
+                TimeSlot.EVENING -> hourValue in 15..19
+                TimeSlot.BEFORE_BED -> hourValue in 20..23 || hourValue in 0..4
+                else -> false
             }
         }
     }
 
     fun takeMedicine(medication: Medication) {
         if (medication.isTaken) return 
-
-        val currentList = _medications.value
-        val currentTimeStr = dateFormat.format(Date())
-
-        // Optimistic UI Update
-        _medications.value = currentList.map {
-            if (it.id == medication.id && (it.time == medication.time || it.hour == medication.hour)) {
-                it.copy(status = "taken")
-            } else it
-        }
-
         viewModelScope.launch {
             try {
+                val currentTimeStr = dateFormat.format(Date())
                 val response = if (medication.logId != null) {
-                    RetrofitClient.api.updateMedLog(
-                        medication.logId,
-                        LogStatusRequest(status = "taken", taken = currentTimeStr)
-                    )
+                    RetrofitClient.api.updateMedLog(medication.logId, LogStatusRequest(status = "taken", taken = currentTimeStr))
                 } else {
-                    RetrofitClient.api.logMedication(
-                        medication.id,
-                        LogStatusRequest(status = "taken", taken = currentTimeStr)
-                    )
+                    RetrofitClient.api.logMedication(medication.id, LogStatusRequest(status = "taken", taken = currentTimeStr))
                 }
-                
-                if (response.isSuccessful) {
-                    performFetch(showLoading = false)
-                } else {
-                    _medications.value = currentList
-                }
+                if (response.isSuccessful) performFetch(false)
             } catch (e: Exception) {
-                _medications.value = currentList
+                Log.e("MedicationVM", "Take Error: ${e.message}")
             }
         }
     }
@@ -173,32 +158,22 @@ class MedicationViewModel : ViewModel() {
     fun markAsMissed(medId: Int) {
         viewModelScope.launch {
             try {
-                val response = RetrofitClient.api.logMedication(
-                    medId,
-                    LogStatusRequest(status = "missed")
-                )
-                if (response.isSuccessful) {
-                    performFetch(showLoading = false)
-                }
+                RetrofitClient.api.logMedication(medId, LogStatusRequest(status = "missed"))
+                performFetch(false)
             } catch (e: Exception) {
-                Log.e("API_LOG", "Error logging missed: ${e.message}")
+                Log.e("MedicationVM", "Missed Error: ${e.message}")
             }
         }
     }
 
     fun addExtraDose(medId: Int) {
-        val currentTimeStr = dateFormat.format(Date())
         viewModelScope.launch {
             try {
-                val response = RetrofitClient.api.logMedication(
-                    medId,
-                    LogStatusRequest(status = "taken", taken = currentTimeStr)
-                )
-                if (response.isSuccessful) {
-                    performFetch(showLoading = false)
-                }
+                val currentTimeStr = dateFormat.format(Date())
+                RetrofitClient.api.logMedication(medId, LogStatusRequest(status = "taken", taken = currentTimeStr))
+                performFetch(false)
             } catch (e: Exception) {
-                Log.e("API_LOG", "Error adding extra dose: ${e.message}")
+                Log.e("MedicationVM", "Extra Error: ${e.message}")
             }
         }
     }
