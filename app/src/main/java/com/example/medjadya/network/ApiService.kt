@@ -1,34 +1,35 @@
 package com.example.medjadya.network
 
-import com.example.medjadya.model.Instruction
-import com.example.medjadya.model.Medication
-import com.example.medjadya.model.Schedule
 import com.example.medjadya.model.MedLog
+import com.example.medjadya.model.Medication
+import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.Path
+import retrofit2.http.Query
 
-// This interface is largely replaced by AppApiService.kt
 interface MedicationApiService {
-    @GET("meds")
-    suspend fun getMeds(
-        @Header("Authorization") token: String
-    ): List<Medication>
+    @GET("medications")
+    suspend fun getMedications(): List<Medication>
 
-    @GET("instructions/{medId}")
-    suspend fun getInstructions(
-        @Header("Authorization") token: String,
-        @Path("medId") medId: Int
-    ): List<Instruction>
 
-    @GET("schedules/{medId}")
-    suspend fun getSchedules(
-        @Header("Authorization") token: String,
-        @Path("medId") medId: Int
-    ): List<Schedule>
+    @GET("api/logs/{userId}") // ตรวจสอบว่ามี /api/ นำหน้าตามที่ตั้งใน server.js หรือไม่
+    suspend fun getLogsByUser(@Path("userId") userId: Int): List<MedLog>
 
-    @GET("logs/{medId}")
-    suspend fun getLogs(
-        @Path("medId") medId: Int
-    ): List<MedLog>
 }
+
+object RetrofitClient {
+    // Use 10.0.2.2 to access localhost from Android Emulator
+    private const val BASE_URL = "http://192.168.56.1:3000/"
+
+    val instance: MedicationApiService by lazy {
+        Retrofit.Builder()
+            .baseUrl(BASE_URL)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(MedicationApiService::class.java)
+    }
+}
+
+
