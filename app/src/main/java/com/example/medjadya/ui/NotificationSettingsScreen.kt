@@ -13,6 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.*
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,26 +44,35 @@ fun NotificationSettingsScreen(navController: NavHostController) {
         } else {
             isEnabled = false
             sharedPref.setNotificationsEnabled(false)
-            Toast.makeText(context, "คุณต้องอนุญาตการแจ้งเตือนเพื่อรับข่าวสาร", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "คุณต้องอนุญาตการแจ้งเตือนเพื่อรับข่าวสาร", Toast.LENGTH_SHORT)
+                .show()
         }
     }
 
     Scaffold(
         topBar = {
-            CenterAlignedTopAppBar(
-                title = { 
-                    Text(
-                        "การตั้งค่าการแจ้งเตือน", 
-                        color = Color.White,
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.Bold
-                    ) 
+            TopAppBar(
+                title = {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "การตั้งค่าการแจ้งเตือน",
+                            fontSize = 26.sp, // ขนาดเท่ากับหน้าแรก
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+
+                    }
+
                 },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(
-                            imageVector = Icons.Default.ArrowBack, 
-                            contentDescription = "Back", 
+                            imageVector = Icons.Default.ArrowBack,
+                            contentDescription = "Back",
                             tint = Color.White
                         )
                     }
@@ -77,7 +87,7 @@ fun NotificationSettingsScreen(navController: NavHostController) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .background(Color(0xFFE1F5FE))
+                .background(Color(0xFFF0F7F9))
                 .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -102,7 +112,7 @@ fun NotificationSettingsScreen(navController: NavHostController) {
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                Icons.Default.Notifications, 
+                                Icons.Default.Notifications,
                                 contentDescription = null,
                                 tint = Color(0xFF0097B2)
                             )
@@ -115,7 +125,7 @@ fun NotificationSettingsScreen(navController: NavHostController) {
                             color = Color.Black
                         )
                     }
-                    
+
                     Switch(
                         checked = isEnabled,
                         onCheckedChange = { checked ->
@@ -126,23 +136,32 @@ fun NotificationSettingsScreen(navController: NavHostController) {
                                         context,
                                         Manifest.permission.POST_NOTIFICATIONS
                                     ) == PackageManager.PERMISSION_GRANTED
-                                    
+
                                     if (hasPermission) {
                                         isEnabled = true
                                         sharedPref.setNotificationsEnabled(true)
-                                        Toast.makeText(context, "เปิดการแจ้งเตือนแล้ว", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(
+                                            context,
+                                            "เปิดการแจ้งเตือนแล้ว",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
                                     } else {
                                         permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                                     }
                                 } else {
                                     isEnabled = true
                                     sharedPref.setNotificationsEnabled(true)
-                                    Toast.makeText(context, "เปิดการแจ้งเตือนแล้ว", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(
+                                        context,
+                                        "เปิดการแจ้งเตือนแล้ว",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
                                 }
                             } else {
                                 isEnabled = false
                                 sharedPref.setNotificationsEnabled(false)
-                                Toast.makeText(context, "ปิดการแจ้งเตือนแล้ว", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "ปิดการแจ้งเตือนแล้ว", Toast.LENGTH_SHORT)
+                                    .show()
                             }
                         },
                         colors = SwitchDefaults.colors(
@@ -154,9 +173,9 @@ fun NotificationSettingsScreen(navController: NavHostController) {
                     )
                 }
             }
-            
+
             Spacer(modifier = Modifier.height(16.dp))
-            
+
             Text(
                 text = if (isEnabled) "คุณจะได้รับการแจ้งเตือนเกี่ยวกับยาของคุณ" else "คุณจะไม่ได้รับการแจ้งเตือนใดๆ",
                 color = Color.Gray,

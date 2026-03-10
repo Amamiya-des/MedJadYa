@@ -45,16 +45,16 @@ fun MedicationScreen() {
     var searchQuery by remember { mutableStateOf("") }
     var medications by remember { mutableStateOf<List<Medication>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
-    
+
     var showDeleteDialog by remember { mutableStateOf(false) }
     var medToDelete by remember { mutableStateOf<Medication?>(null) }
 
-    // Launcher สำหรับขออนุญาตแจ้งเตือน (Android 13+)
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         if (!isGranted) {
-            Toast.makeText(context, "แอปต้องการการอนุญาตเพื่อแจ้งเตือนทานยา", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "แอปต้องการการอนุญาตเพื่อแจ้งเตือนทานยา", Toast.LENGTH_LONG)
+                .show()
         }
     }
 
@@ -64,31 +64,52 @@ fun MedicationScreen() {
             try {
                 val apiService = RetrofitClient.getApiService(context)
                 val response = apiService.getAllMeds()
-                
+
                 if (response.isSuccessful) {
                     val meds = response.body() ?: emptyList()
-                    
+                    Log.d("MedicationScreen", "Fetched ${meds.size} meds from server")
+
                     val fullMedications = meds.map { med ->
                         val medId = med.id ?: return@map med
                         val instructions = async { apiService.getInstructions(medId) }
                         val schedules = async { apiService.getSchedules(medId) }
-                        
+
                         val resultMed = med.copy(
                             instruction = instructions.await().firstOrNull(),
                             schedules = schedules.await()
                         )
 
-                        // ตั้งปลุกตามเวลาใน Database
                         resultMed.schedules?.forEach { schedule ->
-                            schedule.time?.let { timeStr ->
-                                Log.d("MedicationScreen", "กำลังตั้งเวลาสำหรับ ${resultMed.name} ที่ $timeStr")
-                                scheduleAlarm(context, resultMed.name ?: "Unknown", timeStr)
+                            if (schedule.time != null) {
+                                scheduleAlarm(context, resultMed.name ?: "Unknown", schedule.time)
+                            } else if (schedule.hour != null) {
+                                // Improved parsing: extract first number found (handles 1.00, 01:00, etc)
+                                val intervalHours = try {
+                                    val regex = Regex("\\d+")
+                                    val match = regex.find(schedule.hour ?: "")
+                                    match?.value?.toInt() ?: 0
+                                } catch (e: Exception) {
+                                    0
+                                }
+
+                                if (intervalHours > 0) {
+                                    scheduleHourlyAlarm(
+                                        context,
+                                        resultMed.name ?: "Unknown",
+                                        intervalHours
+                                    )
+                                } else {
+                                    Log.e(
+                                        "MedicationScreen",
+                                        "Invalid interval hour for ${resultMed.name}: ${schedule.hour}"
+                                    )
+                                }
                             }
                         }
 
                         resultMed
                     }
-                    
+
                     medications = fullMedications
                 }
             } catch (e: Exception) {
@@ -100,9 +121,12 @@ fun MedicationScreen() {
     }
 
     LaunchedEffect(Unit) {
-        // ขออนุญาตแจ้งเตือนเมื่อเปิดหน้านี้
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            if (ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
                 permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
         }
@@ -134,13 +158,22 @@ fun MedicationScreen() {
                                     val apiService = RetrofitClient.getApiService(context)
                                     val response = apiService.deleteMed(id)
                                     if (response.isSuccessful) {
-                                        Toast.makeText(context, "ลบยาสำเร็จ", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, "ลบยาสำเร็จ", Toast.LENGTH_SHORT)
+                                            .show()
                                         fetchMeds()
                                     } else {
-                                        Toast.makeText(context, "ลบยาไม่สำเร็จ: ${response.message()}", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(
+                                            context,
+                                            "ลบยาไม่สำเร็จ: ${response.message()}",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
                                     }
                                 } catch (e: Exception) {
-                                    Toast.makeText(context, "เกิดข้อผิดพลาด: ${e.message}", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(
+                                        context,
+                                        "เกิดข้อผิดพลาด: ${e.message}",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
                                 }
                             }
                         }
@@ -166,16 +199,16 @@ fun MedicationScreen() {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(100.dp)
-                .background(Color(0xFF1E9EBD)),
+                .height(88.dp)
+                .background(Color(0xFF0097B2)),
             contentAlignment = Alignment.BottomStart
         ) {
             Text(
                 text = "ยาของฉัน",
                 color = Color.White,
-                fontSize = 24.sp,
+                fontSize = 26.sp,
                 fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(start = 24.dp, bottom = 16.dp)
+                modifier = Modifier.padding(start = 16.dp, bottom = 14.dp)
             )
         }
 
@@ -188,7 +221,13 @@ fun MedicationScreen() {
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp),
             placeholder = { Text("ค้นหารายการยา", color = Color.Gray) },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color.Gray) },
+            leadingIcon = {
+                Icon(
+                    Icons.Default.Search,
+                    contentDescription = null,
+                    tint = Color.Gray
+                )
+            },
             shape = RoundedCornerShape(12.dp),
             textStyle = TextStyle(color = Color.Black),
             colors = OutlinedTextFieldDefaults.colors(
@@ -233,8 +272,16 @@ private fun scheduleAlarm(context: Context, medName: String, timeStr: String) {
     val parts = timeStr.split(":")
     if (parts.size < 2) return
 
-    val hour = try { parts[0].toInt() } catch(e: Exception) { 0 }
-    val minute = try { parts[1].toInt() } catch(e: Exception) { 0 }
+    val hour = try {
+        parts[0].toInt()
+    } catch (e: Exception) {
+        0
+    }
+    val minute = try {
+        parts[1].toInt()
+    } catch (e: Exception) {
+        0
+    }
 
     val calendar = Calendar.getInstance().apply {
         set(Calendar.HOUR_OF_DAY, hour)
@@ -250,6 +297,7 @@ private fun scheduleAlarm(context: Context, medName: String, timeStr: String) {
     val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
     val intent = Intent(context, AlarmReceiver::class.java).apply {
         putExtra("MED_NAME", medName)
+        putExtra("TIME", timeStr)
     }
 
     val requestCode = (medName + timeStr).hashCode()
@@ -263,15 +311,91 @@ private fun scheduleAlarm(context: Context, medName: String, timeStr: String) {
     try {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             if (alarmManager.canScheduleExactAlarms()) {
-                alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, calendar.timeInMillis, pendingIntent)
+                alarmManager.setExactAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    calendar.timeInMillis,
+                    pendingIntent
+                )
             } else {
-                alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, calendar.timeInMillis, pendingIntent)
+                alarmManager.setAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    calendar.timeInMillis,
+                    pendingIntent
+                )
             }
         } else {
-            alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, calendar.timeInMillis, pendingIntent)
+            alarmManager.setExactAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP,
+                calendar.timeInMillis,
+                pendingIntent
+            )
         }
-    } catch (e: SecurityException) {
-        alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, calendar.timeInMillis, pendingIntent)
+        Log.d("MedicationScreen", "Scheduled FIXED alarm for $medName at ${calendar.time}")
+    } catch (e: Exception) {
+        Log.e("MedicationScreen", "Failed to schedule fixed alarm: ${e.message}")
+    }
+}
+
+private fun scheduleHourlyAlarm(context: Context, medName: String, intervalHours: Int) {
+    val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+
+    val startTime = Calendar.getInstance().apply {
+        set(Calendar.HOUR_OF_DAY, 8)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }
+
+    val currentTime = System.currentTimeMillis()
+
+    // Find the next available hour starting from 8:00 AM with the given interval
+    while (startTime.timeInMillis <= currentTime) {
+        startTime.add(Calendar.HOUR_OF_DAY, intervalHours)
+    }
+
+    val intent = Intent(context, AlarmReceiver::class.java).apply {
+        putExtra("MED_NAME", medName)
+        putExtra("TIME", String.format("%02d:00", startTime.get(Calendar.HOUR_OF_DAY)))
+        putExtra("IS_HOURLY", true)
+        putExtra("INTERVAL", intervalHours)
+    }
+
+    val requestCode = (medName + "hourly").hashCode()
+    val pendingIntent = PendingIntent.getBroadcast(
+        context,
+        requestCode,
+        intent,
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+    )
+
+    try {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (alarmManager.canScheduleExactAlarms()) {
+                alarmManager.setExactAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    startTime.timeInMillis,
+                    pendingIntent
+                )
+            } else {
+                alarmManager.setAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    startTime.timeInMillis,
+                    pendingIntent
+                )
+            }
+        } else {
+            alarmManager.setExactAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP,
+                startTime.timeInMillis,
+                pendingIntent
+            )
+        }
+        Log.d(
+            "MedicationScreen",
+            "Scheduled HOURLY alarm for $medName. Next trigger at: ${startTime.time}"
+        )
+    } catch (e: Exception) {
+        Log.e("MedicationScreen", "Failed to schedule hourly alarm: ${e.message}")
     }
 }
 
@@ -337,7 +461,8 @@ fun MedicationCard(medication: Medication, onDeleteClick: () -> Unit) {
                 ) {
                     val form = medication.form?.lowercase() ?: ""
                     Text(
-                        text = (medication.dosage ?: "") + " " + if (form == "tablet") "เม็ด" else if (form == "injection") "เข็ม" else if (form == "syrup") "ช้อนโต๊ะ" else "เม็ด",
+                        text = (medication.dosage
+                            ?: "") + " " + if (form == "tablet") "เม็ด" else if (form == "injection") "เข็ม" else if (form == "syrup") "ช้อนโต๊ะ" else "เม็ด",
                         color = Color.Gray,
                         fontSize = 14.sp
                     )
@@ -365,10 +490,12 @@ fun MedicationCard(medication: Medication, onDeleteClick: () -> Unit) {
                                     time.substringBeforeLast(":").removePrefix("0") + " น."
                                 } else time
                             }
+
                             schedule.hour != null -> {
                                 val hourVal = schedule.hour.substringBefore(":").removePrefix("0")
                                 "ทุกๆ $hourVal ชม."
                             }
+
                             else -> "--:--"
                         }
 

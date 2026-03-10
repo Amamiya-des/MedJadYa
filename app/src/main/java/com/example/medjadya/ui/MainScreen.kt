@@ -5,6 +5,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -28,13 +29,33 @@ import com.example.medjadya.viewmodel.MedicationViewModel
 import com.example.medjadya.viewmodel.MedicationViewModelFactory
 
 @Composable
-fun MainScreen(rootNavController: NavHostController, authViewModel: AuthViewModel) {
+fun MainScreen(
+    rootNavController: NavHostController,
+    authViewModel: AuthViewModel,
+    navigateTo: String? = null,
+    onNavigateHandled: () -> Unit = {}
+) {
     val context = LocalContext.current
     val medicationViewModel: MedicationViewModel = viewModel(
         factory = MedicationViewModelFactory(context)
     )
     val bottomNavController = rememberNavController()
-    
+
+    // Handle inner navigation (e.g. from notification)
+    LaunchedEffect(navigateTo) {
+        if (navigateTo != null && navigateTo.startsWith("medication_list/")) {
+            bottomNavController.navigate(navigateTo) {
+                // Ensure we don't build up a massive backstack
+                popUpTo(bottomNavController.graph.findStartDestination().id) {
+                    saveState = true
+                }
+                launchSingleTop = true
+                restoreState = true
+            }
+            onNavigateHandled()
+        }
+    }
+
     Scaffold(
         bottomBar = {
             NavigationBar(
@@ -43,7 +64,7 @@ fun MainScreen(rootNavController: NavHostController, authViewModel: AuthViewMode
             ) {
                 val navBackStackEntry by bottomNavController.currentBackStackEntryAsState()
                 val currentDestination = navBackStackEntry?.destination
-                
+
                 bottomNavItems.forEach { screen ->
                     NavigationBarItem(
                         icon = { Icon(screen.icon, contentDescription = null) },
@@ -84,23 +105,25 @@ fun MainScreen(rootNavController: NavHostController, authViewModel: AuthViewMode
             startDestination = Screen.Home.route,
             modifier = Modifier.padding(innerPadding)
         ) {
-            composable(Screen.Home.route) { 
-                MedicationDashboardScreen(viewModel = medicationViewModel, navController = bottomNavController)
+            composable(Screen.Home.route) {
+                MedicationDashboardScreen(
+                    viewModel = medicationViewModel,
+                    navController = bottomNavController
+                )
             }
-            composable(Screen.Medicine.route) { 
-                MedicationScreen() 
+            composable(Screen.Medicine.route) {
+                MedicationScreen()
             }
-            composable(Screen.Record.route) { 
+            composable(Screen.Record.route) {
                 val userId = authViewModel.currentUserId.toIntOrNull() ?: 0
                 RecordScreen(userId = userId)
             }
-            composable(Screen.Profile.route) { 
+            composable(Screen.Profile.route) {
                 ProfileScreen(navController = rootNavController, viewModel = authViewModel)
             }
             composable(Screen.Test.route) {
                 InsertScreen(navController = bottomNavController, viewModel = medicationViewModel)
             }
-            // Add missing route for Medication List
             composable(
                 route = "medication_list/{slot}",
                 arguments = listOf(navArgument("slot") { type = NavType.StringType })

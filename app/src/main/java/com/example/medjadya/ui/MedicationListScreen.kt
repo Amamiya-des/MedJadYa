@@ -27,6 +27,7 @@ import java.util.Calendar
 fun MedicationListScreen(
     timeSlot: TimeSlot,
     viewModel: MedicationViewModel,
+    targetMedName: String? = null,
     onBack: () -> Unit
 ) {
     val medications by viewModel.medications.collectAsState()
@@ -37,8 +38,15 @@ fun MedicationListScreen(
         viewModel.fetchMedications(showLoading = true)
     }
 
-    val filteredMedications = remember(medications, timeSlot) {
-        viewModel.getMedsForTimeSlot(timeSlot, medications)
+    val filteredMedications = remember(medications, timeSlot, targetMedName) {
+        val baseList = viewModel.getMedsForTimeSlot(timeSlot, medications)
+        if (!targetMedName.isNullOrEmpty()) {
+            // If we came from a notification, show the specific medication first or only
+            // For now, let's filter to only show the target med to make it very clear
+            baseList.filter { it.name?.equals(targetMedName, ignoreCase = true) == true }
+        } else {
+            baseList
+        }
     }
 
     val (title, backgroundColor) = when (timeSlot) {
@@ -49,28 +57,61 @@ fun MedicationListScreen(
         TimeSlot.HOURLY -> "รายชั่วโมง" to Color(0xFFFFFDE7)
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { viewModel.fetchMedications(showLoading = true) }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = Color.White)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF0097B2))
-            )
-        }
-    ) { padding ->
-        Box(modifier = Modifier
+    Column(
+        modifier = Modifier
             .fillMaxSize()
-            .padding(padding)
-            .background(backgroundColor)
+            .background(Color(0xFFF0F7F9))
+    ) {
+        // --- ส่วนที่ 1: Custom Header สูง 88.dp เท่ากับหน้าอื่นๆ ---
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(88.dp)
+                .background(Color(0xFF0097B2)),
+            contentAlignment = Alignment.BottomStart
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        start = 8.dp,
+                        end = 16.dp,
+                        bottom = 10.dp
+                    ), // ปรับ padding ให้ไอคอน back ดูพอดี
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // ปุ่ม Back
+                IconButton(onClick = onBack) {
+                    Icon(
+                        Icons.Default.ArrowBack,
+                        contentDescription = "Back",
+                        tint = Color.White
+                    )
+                }
+
+                // Title
+                Text(
+                    text = if (targetMedName != null) "แจ้งเตือน: $targetMedName" else title,
+                    fontSize = 26.sp, // ปรับลงเล็กน้อยเพื่อให้ไม่เบียดกับปุ่ม back จนเกินไป
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    modifier = Modifier.weight(1f)
+                )
+
+                // ปุ่ม Refresh
+                IconButton(onClick = { viewModel.fetchMedications(showLoading = true) }) {
+                    Icon(
+                        Icons.Default.Refresh,
+                        contentDescription = "Refresh",
+                        tint = Color.White
+                    )
+                }
+            }
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(backgroundColor)
         ) {
             if (isLoading && filteredMedications.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -83,7 +124,9 @@ fun MedicationListScreen(
                         .padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    items(filteredMedications, key = { med -> med.id.toString() + timeSlot.name }) { medication ->
+                    items(
+                        filteredMedications,
+                        key = { med -> med.id.toString() + timeSlot.name }) { medication ->
                         MedicationListItem(
                             medication = medication,
                             timeSlot = timeSlot,
@@ -96,8 +139,16 @@ fun MedicationListScreen(
 
                     if (filteredMedications.isEmpty()) {
                         item {
-                            Box(modifier = Modifier.fillMaxWidth().padding(top = 32.dp), contentAlignment = Alignment.Center) {
-                                Text("ไม่มีรายการยา", color = Color.Gray)
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 32.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    if (targetMedName != null) "ไม่พบข้อมูลยา: $targetMedName" else "ไม่มีรายการยา",
+                                    color = Color.Gray
+                                )
                             }
                         }
                     }
@@ -106,7 +157,9 @@ fun MedicationListScreen(
 
             if (isLoading && filteredMedications.isNotEmpty()) {
                 LinearProgressIndicator(
-                    modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.TopCenter),
                     color = Color(0xFF0097B2),
                     trackColor = Color.Transparent
                 )
@@ -125,17 +178,25 @@ fun MedicationListItem(
     onAddExtraClick: () -> Unit
 ) {
     val isTakenInSlot = medication.isTakenInSlot(timeSlot)
-    
+
     // Find the schedule time that matches the current time slot
     val medTimeStr = remember(medication.schedules, timeSlot) {
         medication.schedules?.find { schedule ->
+            val type = schedule.type?.lowercase()
+            val isHourly = type == "hourly" || (schedule.time == null && schedule.hour != null)
+
             if (timeSlot == TimeSlot.HOURLY) {
-                return@find schedule.type?.lowercase() == "hourly"
+                return@find isHourly
             }
+
+            if (isHourly) return@find false
+
             val timeStr = schedule.time ?: schedule.hour ?: return@find false
             val hour = try {
                 timeStr.substringBefore(':').trim().toInt()
-            } catch (e: Exception) { -1 }
+            } catch (e: Exception) {
+                -1
+            }
 
             when (timeSlot) {
                 TimeSlot.MORNING -> hour in 5..10
@@ -144,14 +205,21 @@ fun MedicationListItem(
                 TimeSlot.BEFORE_BED -> hour in 20..23 || hour in 0..4
                 else -> false
             }
-        }?.let { 
+        }?.let { schedule ->
             if (timeSlot == TimeSlot.HOURLY) {
-                it.hour?.take(5) ?: "ทุกๆ ${it.time ?: "?"} ชม."
+                val hourStr = schedule.hour ?: schedule.time ?: ""
+                val hourVal = try {
+                    hourStr.substringBefore(':').trim().toInt().toString()
+                } catch (e: Exception) {
+                    "?"
+                }
+                "ทุกๆ $hourVal ชม."
             } else {
-                it.time ?: it.hour
+                schedule.time ?: schedule.hour
             }
         } ?: "--:--"
     }
+
 
     val isOverdue = remember(isTakenInSlot, medTimeStr, currentTime) {
         if (isTakenInSlot) return@remember false
@@ -160,7 +228,11 @@ fun MedicationListItem(
         try {
             val parts = medTimeStr.substringBefore(':').trim().split(' ').last()
             val medHour = parts.toInt()
-            val medMinute = try { medTimeStr.split(":")[1].take(2).toInt() } catch(e: Exception) { 0 }
+            val medMinute = try {
+                medTimeStr.split(":")[1].take(2).toInt()
+            } catch (e: Exception) {
+                0
+            }
 
             val now = Calendar.getInstance()
             now.timeInMillis = currentTime
@@ -170,7 +242,9 @@ fun MedicationListItem(
             if (currentHour > medHour) true
             else if (currentHour == medHour && currentMinute > medMinute) true
             else false
-        } catch (e: Exception) { false }
+        } catch (e: Exception) {
+            false
+        }
     }
 
     val showAsMissed = !isTakenInSlot && isOverdue
@@ -189,7 +263,12 @@ fun MedicationListItem(
         ),
         elevation = CardDefaults.cardElevation(4.dp)
     ) {
-        Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
@@ -200,13 +279,30 @@ fun MedicationListItem(
                     )
                     if (showAsMissed) {
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(text = "• ลืมทาน!", fontSize = 12.sp, color = Color.Red, fontWeight = FontWeight.Bold)
+                        Text(
+                            text = "• ลืมทาน!",
+                            fontSize = 12.sp,
+                            color = Color.Red,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
                 Spacer(modifier = Modifier.height(4.dp))
-                Text(medication.name ?: "ไม่ระบุชื่อยา", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                Text("${medication.instruction?.amount ?: ""} ${medication.form ?: "เม็ด"}", fontSize = 14.sp, color = Color.Gray)
-                Text(medication.instruction?.instructions ?: "ทานตามปกติ", fontSize = 14.sp, color = Color.Gray)
+                Text(
+                    medication.name ?: "ไม่ระบุชื่อยา",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    "${medication.instruction?.amount ?: ""} ${medication.form ?: "เม็ด"}",
+                    fontSize = 14.sp,
+                    color = Color.Gray
+                )
+                Text(
+                    medication.instruction?.instructions ?: "ทานตามปกติ",
+                    fontSize = 14.sp,
+                    color = Color.Gray
+                )
             }
 
             Button(
@@ -229,7 +325,9 @@ fun MedicationListItem(
                 Spacer(modifier = Modifier.width(8.dp))
                 IconButton(
                     onClick = onAddExtraClick,
-                    modifier = Modifier.size(40.dp).background(Color(0xFF0097B2), RoundedCornerShape(8.dp))
+                    modifier = Modifier
+                        .size(40.dp)
+                        .background(Color(0xFF0097B2), RoundedCornerShape(8.dp))
                 ) {
                     Icon(Icons.Default.Add, contentDescription = "Add", tint = Color.White)
                 }

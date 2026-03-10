@@ -42,6 +42,10 @@ fun ProfileScreen(navController: NavHostController, viewModel: AuthViewModel) {
     var showLogoutDialog by remember { mutableStateOf(false) }
     var rememberId by remember { mutableStateOf(false) }
 
+    val primaryCyan = Color(0xFF1E9EBD)
+    val darkCyan = Color(0xFF0097B2)
+    val backgroundGray = Color(0xFFF0F7F9)
+
     // Fetch profile when screen opens or when userId changes
     LaunchedEffect(userId) {
         if (userId.isNotEmpty()) {
@@ -70,7 +74,8 @@ fun ProfileScreen(navController: NavHostController, viewModel: AuthViewModel) {
                     ) {
                         Checkbox(
                             checked = rememberId,
-                            onCheckedChange = { rememberId = it }
+                            onCheckedChange = { rememberId = it },
+                            colors = CheckboxDefaults.colors(checkedColor = primaryCyan)
                         )
                         Text(
                             text = "จดจำชื่อผู้ใช้ของฉัน",
@@ -88,14 +93,15 @@ fun ProfileScreen(navController: NavHostController, viewModel: AuthViewModel) {
                             popUpTo(0) { inclusive = true }
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0097B2))
+                    colors = ButtonDefaults.buttonColors(containerColor = primaryCyan),
+                    shape = RoundedCornerShape(12.dp)
                 ) {
                     Text("ออกจากระบบ", color = Color.White)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showLogoutDialog = false }) {
-                    Text("ยกเลิก", color = Color(0xFF0097B2))
+                    Text("ยกเลิก", color = Color.Gray)
                 }
             }
         )
@@ -104,21 +110,23 @@ fun ProfileScreen(navController: NavHostController, viewModel: AuthViewModel) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFE1F5FE))
+            .background(backgroundGray)
             .verticalScroll(rememberScrollState())
     ) {
         // Header
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(Color(0xFF0097B2))
-                .padding(vertical = 20.dp, horizontal = 24.dp)
+                .height(85.dp)
+                .background(darkCyan),
+            contentAlignment = Alignment.BottomStart
         ) {
             Text(
                 text = "โปรไฟล์",
-                fontSize = 26.sp,
+                fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = Color.White,
+                modifier = Modifier.padding(start = 20.dp, bottom = 16.dp)
             )
         }
 
@@ -129,27 +137,24 @@ fun ProfileScreen(navController: NavHostController, viewModel: AuthViewModel) {
         ) {
             // User Info Card
             Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-                shape = RoundedCornerShape(20.dp),
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White),
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
                 Row(
-                    modifier = Modifier
-                        .padding(20.dp)
-                        .fillMaxWidth(),
+                    modifier = Modifier.padding(20.dp).fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.profile),
-                        contentDescription = "Profile Picture",
+                    Box(
                         modifier = Modifier
                             .size(80.dp)
-                            .clip(RoundedCornerShape(16.dp)),
-                        contentScale = ContentScale.Crop
-                    )
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(primaryCyan.copy(alpha = 0.1f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("👤", fontSize = 40.sp)
+                    }
                     Spacer(modifier = Modifier.width(16.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         if (profile != null) {
@@ -178,13 +183,13 @@ fun ProfileScreen(navController: NavHostController, viewModel: AuthViewModel) {
                                     color = Color.Red
                                 )
                                 TextButton(onClick = { viewModel.fetchProfile(userId) }) {
-                                    Text("ลองใหม่", color = Color(0xFF0097B2))
+                                    Text("ลองใหม่", color = primaryCyan)
                                 }
                             } else {
                                 CircularProgressIndicator(
                                     modifier = Modifier.size(24.dp),
                                     strokeWidth = 2.dp,
-                                    color = Color(0xFF0097B2)
+                                    color = primaryCyan
                                 )
                                 Text(
                                     text = "กำลังโหลดข้อมูล...",
@@ -203,35 +208,26 @@ fun ProfileScreen(navController: NavHostController, viewModel: AuthViewModel) {
             // Menu Notification Section
             Text(
                 text = "เมนูการแจ้งเตือน",
-                fontSize = 20.sp,
+                fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(start = 8.dp, bottom = 12.dp)
             )
 
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp),
+                horizontalArrangement = Arrangement.Center
             ) {
                 MenuCard(
                     title = "เตือนให้เติมยา",
-                    subtitle = "ตรวจสอบยา\nที่เหลือน้อย",
+                    subtitle = "ตรวจสอบยาที่เหลือน้อย",
                     icon = Icons.Default.Warning,
                     iconColor = Color(0xFFD32F2F),
-                    backgroundColor = Color(0xFFFFF3E0),
-                    modifier = Modifier.weight(1f),
+                    backgroundColor = Color(0xFFFFEBEE),
+                    modifier = Modifier.fillMaxWidth(0.5f),
                     onClick = {
                         navController.navigate(Screen.RefillAlerts.route)
-                    }
-                )
-                MenuCard(
-                    title = "เตือนความจำ",
-                    subtitle = "ดูการแจ้งเตือน\nที่เปิดใช้งาน",
-                    icon = Icons.Default.Notifications,
-                    iconColor = Color(0xFF0097B2),
-                    backgroundColor = Color.White,
-                    modifier = Modifier.weight(1f),
-                    onClick = {
-                        Toast.makeText(context, "กำลังพัฒนาระบบเตือนความจำ", Toast.LENGTH_SHORT).show()
                     }
                 )
             }
@@ -241,7 +237,7 @@ fun ProfileScreen(navController: NavHostController, viewModel: AuthViewModel) {
             // Settings Section
             Text(
                 text = "การตั้งค่า",
-                fontSize = 20.sp,
+                fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(start = 8.dp, bottom = 12.dp)
             )
@@ -257,24 +253,30 @@ fun ProfileScreen(navController: NavHostController, viewModel: AuthViewModel) {
                         title = "การแจ้งเตือน",
                         subtitle = "เปิด/ปิด การแจ้งเตือนแอป",
                         icon = Icons.Default.Notifications,
-                        iconTintColor = Color(0xFF0097B2),
-                        iconBgColor = Color(0xFFE1F5FE),
+                        iconTintColor = primaryCyan,
+                        iconBgColor = backgroundGray,
                         onClick = {
                             navController.navigate(Screen.NotificationSettings.route)
                         }
                     )
-                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = Color(0xFFEEEEEE))
+                    HorizontalDivider(
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        color = backgroundGray
+                    )
                     SettingsItem(
                         title = "แก้ไขโปรไฟล์",
                         subtitle = "แก้ไขข้อมูลส่วนตัวของคุณ",
                         icon = Icons.Default.Edit,
-                        iconTintColor = Color(0xFF0097B2),
-                        iconBgColor = Color(0xFFE1F5FE),
+                        iconTintColor = primaryCyan,
+                        iconBgColor = backgroundGray,
                         onClick = {
                             navController.navigate(Screen.EditProfile.route)
                         }
                     )
-                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = Color(0xFFEEEEEE))
+                    HorizontalDivider(
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        color = backgroundGray
+                    )
                     SettingsItem(
                         title = "ออกจากระบบ",
                         subtitle = null,
@@ -303,7 +305,7 @@ fun MenuCard(
 ) {
     Card(
         modifier = modifier
-            .aspectRatio(1f)
+            .aspectRatio(1.6f) // Shorter height
             .clickable { onClick() },
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = backgroundColor),
@@ -319,22 +321,22 @@ fun MenuCard(
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                modifier = Modifier.size(36.dp),
+                modifier = Modifier.size(28.dp), // Smaller icon
                 tint = iconColor
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = title,
-                fontSize = 16.sp,
+                fontSize = 14.sp, // Smaller font
                 fontWeight = FontWeight.Bold,
                 color = Color.Black,
                 textAlign = TextAlign.Center
             )
             Text(
                 text = subtitle,
-                fontSize = 11.sp,
+                fontSize = 10.sp, // Smaller font
                 color = Color.Gray,
-                lineHeight = 14.sp,
+                lineHeight = 12.sp,
                 textAlign = TextAlign.Center
             )
         }
@@ -359,15 +361,15 @@ fun SettingsItem(
     ) {
         Box(
             modifier = Modifier
-                .size(44.dp)
-                .clip(RoundedCornerShape(12.dp))
+                .size(40.dp)
+                .clip(RoundedCornerShape(10.dp))
                 .background(iconBgColor),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                modifier = Modifier.size(22.dp),
+                modifier = Modifier.size(20.dp),
                 tint = iconTintColor
             )
         }
@@ -376,7 +378,7 @@ fun SettingsItem(
             Text(
                 text = title,
                 fontSize = 16.sp,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Medium
             )
             if (subtitle != null) {
                 Text(
@@ -389,8 +391,8 @@ fun SettingsItem(
         Icon(
             imageVector = Icons.Default.ArrowForwardIos,
             contentDescription = null,
-            tint = Color.Gray,
-            modifier = Modifier.size(16.dp)
+            tint = Color.LightGray,
+            modifier = Modifier.size(14.dp)
         )
     }
 }

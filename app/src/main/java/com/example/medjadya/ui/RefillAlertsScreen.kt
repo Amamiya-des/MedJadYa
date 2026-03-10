@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.example.medjadya.model.Medication
 import com.example.medjadya.model.UpdateInstructionRequest
@@ -67,7 +68,7 @@ fun RefillAlertsScreen(nav: NavHostController) {
             val response = apiService.getAllMeds()
             if (response.isSuccessful) {
                 val meds = response.body() ?: emptyList()
-                
+
                 // Enrich medications with instructions to get remain/total values
                 medications = supervisorScope {
                     meds.map { med ->
@@ -129,7 +130,7 @@ fun RefillAlertsScreen(nav: NavHostController) {
                                 start_date = item.startDate,
                                 stop_date = item.stopDate,
 
-                            )
+                                )
                         )
                         if (response.isSuccessful) {
                             Toast.makeText(ctx, "เติมยาสำเร็จ", Toast.LENGTH_SHORT).show()
@@ -138,7 +139,8 @@ fun RefillAlertsScreen(nav: NavHostController) {
                             Toast.makeText(ctx, "เติมยาไม่สำเร็จ", Toast.LENGTH_SHORT).show()
                         }
                     } catch (e: Exception) {
-                        Toast.makeText(ctx, "เกิดข้อผิดพลาด: ${e.message}", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(ctx, "เกิดข้อผิดพลาด: ${e.message}", Toast.LENGTH_SHORT)
+                            .show()
                     }
                 }
             }
@@ -158,20 +160,26 @@ fun RefillAlertScreenContent(
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("แจ้งเตือนการเติมยา", fontWeight = FontWeight.Bold) },
+                title = {
+                    Text(
+                        "แจ้งเตือนการเติมยา",
+                        fontSize = 26.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "back")
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = Color(0xFF12A8D6),
+                    containerColor = Color(0xFF0097B2),
                     titleContentColor = Color.White,
                     navigationIconContentColor = Color.White
                 )
             )
         },
-        containerColor = Color(0xFFF2FBFF)
+        containerColor = Color(0xFFF0F7F9)
     ) { padding ->
         LazyColumn(
             modifier = Modifier
@@ -184,11 +192,17 @@ fun RefillAlertScreenContent(
                 SummaryCard(needRefillCount = needRefillCount)
             }
 
-            val refillNeededList = items.filter { stockStatus(it.remain, it.total) != StockStatus.OK }
-            
+            val refillNeededList =
+                items.filter { stockStatus(it.remain, it.total) != StockStatus.OK }
+
             if (refillNeededList.isEmpty()) {
                 item {
-                    Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
                         Text("ไม่มียาที่ต้องเติมในขณะนี้", color = Color.Gray)
                     }
                 }
@@ -354,7 +368,12 @@ private fun StatusPill(status: StockStatus) {
             .padding(horizontal = 10.dp, vertical = 4.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(text, color = Color.White, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+        Text(
+            text,
+            color = Color.White,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold
+        )
     }
 }
 

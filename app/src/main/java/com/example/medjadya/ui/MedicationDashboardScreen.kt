@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Refresh
@@ -40,25 +41,51 @@ fun MedicationDashboardScreen(
         viewModel.fetchMedications(showLoading = true)
     }
 
-    Scaffold(
-        containerColor = Color.White,
-        topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text("ยาที่ต้องทานวันนี้", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { viewModel.fetchMedications(true) }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = Color.White)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF0097B2))
-            )
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFFF0F7F9)) // สีพื้นหลังเทาอมฟ้าอ่อนๆ เหมือนรูปที่ 3
+    ) {
+        // --- ส่วนที่ 1: Custom Header สีฟ้า (แทน TopAppBar) ---
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(88.dp) // ความสูงเท่ากับรูปที่ 3
+                .background(Color(0xFF0097B2)),
+            contentAlignment = Alignment.BottomStart
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, end = 16.dp, bottom = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "ยาที่ต้องทานวันนี้",
+                    fontSize = 26.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+
+                // ปุ่ม Refresh ย้ายมาไว้ใน Box Header
+                IconButton(
+                    onClick = { viewModel.fetchMedications(true) },
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Refresh,
+                        contentDescription = "Refresh",
+                        tint = Color.White
+                    )
+                }
+            }
         }
-    ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding).background(Color.White)) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(0xFFF0F7F9))
+        ) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -84,7 +111,9 @@ fun MedicationDashboardScreen(
                             slot = slot,
                             currentTime = currentTime,
                             isExpanded = expandedSlot == title,
-                            onToggle = { expandedSlot = if (expandedSlot == title) null else title },
+                            onToggle = {
+                                expandedSlot = if (expandedSlot == title) null else title
+                            },
                             onTakeClick = { med -> med.id?.let { viewModel.takeMedicine(it) } },
                             onDetailClick = { navController.navigate("medication_list/${slot.name}") }
                         )
@@ -93,12 +122,17 @@ fun MedicationDashboardScreen(
             }
 
             if (isLoading && medications.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize().background(Color.White.copy(alpha = 0.5f)), contentAlignment = Alignment.Center) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.White.copy(alpha = 0.5f)),
+                    contentAlignment = Alignment.Center
+                ) {
                     CircularProgressIndicator(color = Color(0xFF0097B2))
                 }
             } else if (isLoading) {
                 LinearProgressIndicator(
-                    modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter),
+                    modifier = Modifier.fillMaxWidth(),
                     color = Color(0xFF0097B2),
                     trackColor = Color.Transparent
                 )
@@ -121,13 +155,20 @@ fun TimeSlotDropdownCard(
     onDetailClick: () -> Unit
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth().clickable { onToggle() },
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onToggle() },
         shape = RoundedCornerShape(16.dp),
         elevation = CardDefaults.cardElevation(2.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
         Column {
-            Box(modifier = Modifier.fillMaxWidth().background(gradient).padding(16.dp)) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(gradient)
+                    .padding(16.dp)
+            ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(iconLabel, fontSize = 24.sp)
                     Spacer(modifier = Modifier.width(12.dp))
@@ -138,21 +179,33 @@ fun TimeSlotDropdownCard(
                         shape = RoundedCornerShape(50),
                         modifier = Modifier.clickable { onDetailClick() }
                     ) {
-                        Text("${medications.size}", modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp), fontWeight = FontWeight.Bold)
+                        Text(
+                            "${medications.size}",
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                            fontWeight = FontWeight.Bold
+                        )
                     }
-                    Icon(if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, contentDescription = null)
+                    Icon(
+                        if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                        contentDescription = null
+                    )
                 }
             }
             AnimatedVisibility(visible = isExpanded) {
                 Column(modifier = Modifier.padding(8.dp)) {
                     if (medications.isEmpty()) {
-                        Text("ไม่มีรายการยา", modifier = Modifier.padding(8.dp), color = Color.Gray, fontSize = 14.sp)
+                        Text(
+                            "ไม่มีรายการยา",
+                            modifier = Modifier.padding(8.dp),
+                            color = Color.Gray,
+                            fontSize = 14.sp
+                        )
                     } else {
                         medications.forEach { med ->
                             MedicationItemRow(
-                                medication = med, 
+                                medication = med,
                                 slot = slot,
-                                currentTime = currentTime, 
+                                currentTime = currentTime,
                                 onTakeClick = onTakeClick
                             )
                             Spacer(modifier = Modifier.height(4.dp))
@@ -166,29 +219,31 @@ fun TimeSlotDropdownCard(
 
 @Composable
 fun MedicationItemRow(
-    medication: Medication, 
+    medication: Medication,
     slot: TimeSlot,
-    currentTime: Long, 
+    currentTime: Long,
     onTakeClick: (Medication) -> Unit
 ) {
     val isTakenInSlot = medication.isTakenInSlot(slot)
-    
+
     // Find the schedule time that matches the current time slot
     val medTimeStr = remember(medication.schedules, slot) {
         medication.schedules?.find { schedule ->
             val type = schedule.type?.lowercase()
             val isHourly = type == "hourly" || (schedule.time == null && schedule.hour != null)
-            
+
             if (slot == TimeSlot.HOURLY) {
                 return@find isHourly
             }
-            
+
             if (isHourly) return@find false
-            
+
             val timeStr = schedule.time ?: schedule.hour ?: return@find false
             val hour = try {
                 timeStr.substringBefore(':').trim().toInt()
-            } catch (e: Exception) { -1 }
+            } catch (e: Exception) {
+                -1
+            }
 
             when (slot) {
                 TimeSlot.MORNING -> hour in 5..10
@@ -202,14 +257,16 @@ fun MedicationItemRow(
                 val hourStr = schedule.hour ?: schedule.time ?: ""
                 val hourVal = try {
                     hourStr.substringBefore(':').trim().toInt().toString()
-                } catch (e: Exception) { "?" }
+                } catch (e: Exception) {
+                    "?"
+                }
                 "ทุกๆ $hourVal ชม."
             } else {
                 schedule.time ?: schedule.hour
             }
         } ?: "--:--"
     }
-    
+
     val isOverdue = remember(isTakenInSlot, medTimeStr, currentTime) {
         if (isTakenInSlot) return@remember false
         if (slot == TimeSlot.HOURLY) return@remember false // Hourly meds are never "overdue" in this simple logic
@@ -218,17 +275,27 @@ fun MedicationItemRow(
             val medHour = parts.toInt()
             val now = Calendar.getInstance().apply { timeInMillis = currentTime }
             now.get(Calendar.HOUR_OF_DAY) > medHour
-        } catch (e: Exception) { false }
+        } catch (e: Exception) {
+            false
+        }
     }
 
     Row(
-        modifier = Modifier.fillMaxWidth().background(if (isOverdue) Color(0xFFFFF0F0) else Color.Transparent, RoundedCornerShape(8.dp)).padding(8.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(
+                if (isOverdue) Color(0xFFFFF0F0) else Color.Transparent,
+                RoundedCornerShape(8.dp)
+            )
+            .padding(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 if (slot == TimeSlot.HOURLY) medTimeStr else "${medTimeStr.take(5)} น." + if (isOverdue) " • ลืมทาน!" else "",
-                fontSize = 12.sp, color = if (isOverdue) Color.Red else Color(0xFF0097B2), fontWeight = FontWeight.Bold
+                fontSize = 12.sp,
+                color = if (isOverdue) Color.Red else Color(0xFF0097B2),
+                fontWeight = FontWeight.Bold
             )
             Text(medication.name ?: "ไม่ระบุชื่อยา", fontSize = 15.sp, fontWeight = FontWeight.Bold)
         }
@@ -237,7 +304,11 @@ fun MedicationItemRow(
             enabled = !isTakenInSlot,
             modifier = Modifier.height(32.dp),
             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = if (isOverdue) Color.Red else Color(0xFF0097B2))
+            colors = ButtonDefaults.buttonColors(
+                containerColor = if (isOverdue) Color.Red else Color(
+                    0xFF0097B2
+                )
+            )
         ) {
             Text(if (isTakenInSlot) "ทานแล้ว" else "ทานยา", fontSize = 11.sp)
         }
@@ -249,7 +320,13 @@ fun getGradientForSlot(slot: TimeSlot): Brush {
         TimeSlot.MORNING -> Brush.horizontalGradient(listOf(Color(0xFFE6FFEA), Color(0xFFB2FFBD)))
         TimeSlot.LUNCH -> Brush.horizontalGradient(listOf(Color(0xFFFFF5E6), Color(0xFFFFE0B2)))
         TimeSlot.EVENING -> Brush.horizontalGradient(listOf(Color(0xFFE6F7FF), Color(0xFFBAE7FF)))
-        TimeSlot.BEFORE_BED -> Brush.horizontalGradient(listOf(Color(0xFFF0E6FF), Color(0xFFD6BCFA)))
+        TimeSlot.BEFORE_BED -> Brush.horizontalGradient(
+            listOf(
+                Color(0xFFF0E6FF),
+                Color(0xFFD6BCFA)
+            )
+        )
+
         TimeSlot.HOURLY -> Brush.horizontalGradient(listOf(Color(0xFFFFFDE7), Color(0xFFFFF59D)))
     }
 }

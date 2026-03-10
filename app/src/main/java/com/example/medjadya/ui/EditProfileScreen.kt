@@ -7,6 +7,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
@@ -45,35 +46,45 @@ fun EditProfileScreen(navController: NavHostController, viewModel: AuthViewModel
 
     Scaffold(
         topBar = {
-            CenterAlignedTopAppBar(
-                title = { 
-                    Text(
-                        "แก้ไขโปรไฟล์", 
-                        color = Color.White,
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.Bold
-                    ) 
-                },
-                navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(
-                            imageVector = Icons.Default.ArrowBack, 
-                            contentDescription = "Back", 
-                            tint = Color.White
+            TopAppBar(
+                title = {
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "แก้ไขโปรไฟล์",
+                            fontSize = 26.sp, // ขนาดเท่ากับหน้าแรก
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
                         )
+                        IconButton(onClick = { navController.popBackStack() }) {
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = "Close",
+                                tint = Color.White,
+                                modifier = Modifier.size(28.dp)
+                            )
+                        }
                     }
+
+
                 },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = Color(0xFF0097B2)
-                )
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF0097B2))
+
             )
+            // ปรับสีและ Padding ให้เหมือนหน้าโปรไฟล์
+
         }
     ) { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .background(Color(0xFFE1F5FE))
+                .background(Color(0xFFF0F7F9))
                 .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -159,11 +170,12 @@ fun EditProfileScreen(navController: NavHostController, viewModel: AuthViewModel
                         profile?.idUser?.let { id ->
                             viewModel.updateProfile(context, id.toString(), name, email, age) {
                                 Toast.makeText(context, "บันทึกการแก้ไข", Toast.LENGTH_SHORT).show()
-                                navController.popBackStack() 
+                                navController.popBackStack()
                             }
                         }
                     } else {
-                        Toast.makeText(context, "กรุณากรอกข้อมูลให้ครบถ้วน", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "กรุณากรอกข้อมูลให้ครบถ้วน", Toast.LENGTH_SHORT)
+                            .show()
                     }
                 },
                 modifier = Modifier
@@ -173,8 +185,8 @@ fun EditProfileScreen(navController: NavHostController, viewModel: AuthViewModel
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0097B2))
             ) {
                 Text(
-                    "บันทึกการเปลี่ยนแปลง", 
-                    fontSize = 18.sp, 
+                    "บันทึกการเปลี่ยนแปลง",
+                    fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White
                 )

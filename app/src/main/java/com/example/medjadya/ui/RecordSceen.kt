@@ -25,6 +25,7 @@ import com.example.medjadya.model.DailySummary
 import com.example.medjadya.viewmodel.MedLogViewModel
 import com.example.medjadya.viewmodel.MedLogViewModelFactory
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RecordScreen(userId: Int) {
     val context = LocalContext.current
@@ -36,96 +37,89 @@ fun RecordScreen(userId: Int) {
         }
     }
 
-    Scaffold(
-        topBar = {
-            Surface(color = Color(0xFF1E9EBD), modifier = Modifier.fillMaxWidth()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(80.dp),
-                    contentAlignment = Alignment.BottomStart
-                ) {
-                    Text(
-                        text = "บันทึกและประวัติการทานยา",
-                        color = Color.White,
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(start = 24.dp, bottom = 16.dp)
-                    )
-                }
-            }
-        },
-        containerColor = Color(0xFFF0F4F7)
-    ) { padding ->
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFFF0F7F9))
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(88.dp)
+                .background(Color(0xFF0097B2)),
+            contentAlignment = Alignment.BottomStart
+        ) {
+            Text(
+                text = "บันทึกและประวัติการทานยา",
+                color = Color.White,
+                fontSize = 26.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(start = 16.dp, bottom = 14.dp)
+            )
+        }
         Column(
             modifier = Modifier
-                .padding(padding)
-                .fillMaxSize()
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 16.dp)
         ) {
-            // --- ส่วนที่ 1: ปุ่มเลือกช่วงเวลา ---
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 16.dp)
+            Text("ช่วงเวลา", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Row(
+                modifier = Modifier.padding(top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text("ช่วงเวลา", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                Row(
-                    modifier = Modifier.padding(top = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    listOf("ทั้งหมด", "เดือน", "สัปดาห์").forEach { period ->
-                        val isSelected = viewModel.selectedPeriod.value == period
-                        Button(
-                            onClick = {
-                                viewModel.selectedPeriod.value = period
-                                viewModel.filterData(period, viewModel.allLogsList)
-                            },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isSelected) Color(0xFF2E9ABF) else Color.White,
-                                contentColor = if (isSelected) Color.White else Color.Black
-                            ),
-                            shape = RoundedCornerShape(20.dp),
-                            elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp),
-                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
-                        ) {
-                            Text(period)
-                        }
+                listOf("ทั้งหมด", "เดือน", "สัปดาห์").forEach { period ->
+                    val isSelected = viewModel.selectedPeriod.value == period
+                    Button(
+                        onClick = {
+                            viewModel.selectedPeriod.value = period
+                            viewModel.filterData(period, viewModel.allLogsList)
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isSelected) Color(0xFF2E9ABF) else Color.White,
+                            contentColor = if (isSelected) Color.White else Color.Black
+                        ),
+                        shape = RoundedCornerShape(20.dp),
+                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        Text(period)
                     }
                 }
             }
+        }
 
-            // --- ส่วนที่ 2: รายการที่เลื่อนได้ ---
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
+        // --- ส่วนที่ 2: รายการที่เลื่อนได้ ---
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            item {
+                SummaryCardOnly(viewModel)
+            }
+
+            item {
+                Text(
+                    text = "ประวัติการทานยา",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    modifier = Modifier.padding(vertical = 8.dp)
+                )
+            }
+
+            if (viewModel.dailySummaries.isEmpty()) {
                 item {
-                    SummaryCardOnly(viewModel)
+                    EmptyStateUI()
                 }
-
-                item {
-                    Text(
-                        text = "ประวัติการทานยา",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp,
-                        modifier = Modifier.padding(vertical = 8.dp)
-                    )
-                }
-
-                if (viewModel.dailySummaries.isEmpty()) {
-                    item {
-                        EmptyStateUI()
-                    }
-                } else {
-                    items(viewModel.dailySummaries) { summary ->
-                        MedHistoryCard(summary)
-                    }
+            } else {
+                items(viewModel.dailySummaries) { summary ->
+                    MedHistoryCard(summary)
                 }
             }
         }
     }
 }
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -144,9 +138,15 @@ fun MedHistoryCard(summary: DailySummary) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
-                    summary.displayDate?.let { Text(text = it, fontSize = 16.sp, fontWeight = FontWeight.Bold) }
+                    summary.displayDate?.let {
+                        Text(
+                            text = it,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                     Text(
-                        text = "รับประทานยา ${summary.takenCount} จาก ${summary.totalCount} มื้อ",
+                        text = "รับประทานยา ${summary.takenCount} จาก ${summary.totalCount} ชนิด",
                         fontSize = 14.sp, color = Color.Gray
                     )
                 }
@@ -191,7 +191,11 @@ fun MedHistoryCard(summary: DailySummary) {
             )
 
             if (expanded) {
-                HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), thickness = 0.5.dp, color = Color(0xFFEEEEEE))
+                HorizontalDivider(
+                    modifier = Modifier.padding(vertical = 12.dp),
+                    thickness = 0.5.dp,
+                    color = Color(0xFFEEEEEE)
+                )
 
                 if (summary.meals.isEmpty()) {
                     Text(text = "ไม่มีข้อมูลมื้อยา", fontSize = 13.sp, color = Color.LightGray)
@@ -205,10 +209,17 @@ fun MedHistoryCard(summary: DailySummary) {
                                 color = Color(0xFF2E9ABF)
                             )
                             if (meal.meds.isEmpty()) {
-                                Text(text = "  - ไม่มียาในมื้อนี้", fontSize = 13.sp, color = Color.LightGray)
+                                Text(
+                                    text = "  - ไม่มียาในมื้อนี้",
+                                    fontSize = 13.sp,
+                                    color = Color.LightGray
+                                )
                             } else {
                                 meal.meds.forEach { medName ->
-                                    Text(text = "  - ${medName ?: "ไม่ระบุชื่อยา"}", fontSize = 13.sp)
+                                    Text(
+                                        text = "  - ${medName ?: "ไม่ระบุชื่อยา"}",
+                                        fontSize = 13.sp
+                                    )
                                 }
                             }
                         }
@@ -239,9 +250,22 @@ fun SummaryCardOnly(viewModel: MedLogViewModel) {
             )
             Spacer(modifier = Modifier.height(16.dp))
 
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                StatItem(icon = Icons.Default.CheckCircle, count = viewModel.totalTaken.value, label = "ทานแล้ว", color = Color(0xFF4CAF50))
-                StatItem(icon = Icons.Default.Cancel, count = viewModel.totalMissed.value, label = "ยังไม่ทาน", color = Color(0xFFE57373))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                StatItem(
+                    icon = Icons.Default.CheckCircle,
+                    count = viewModel.totalTaken.value,
+                    label = "ทานแล้ว",
+                    color = Color(0xFF4CAF50)
+                )
+                StatItem(
+                    icon = Icons.Default.Cancel,
+                    count = viewModel.totalMissed.value,
+                    label = "ยังไม่ทาน",
+                    color = Color(0xFFE57373)
+                )
             }
         }
     }
