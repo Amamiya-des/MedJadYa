@@ -6,6 +6,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import com.example.medjadya.SharedPreferencesManager
 import com.example.medjadya.ui.*
 import com.example.medjadya.viewmodel.*
 
@@ -13,10 +14,18 @@ import com.example.medjadya.viewmodel.*
 fun NavGraph(navController: NavHostController) {
     val context = LocalContext.current
     val authViewModel: AuthViewModel = viewModel { AuthViewModel(context) }
+    val sharedPref = SharedPreferencesManager(context)
+    
+    // Check if user is already logged in
+    val startDestination = if (sharedPref.isLoggedIn()) {
+        "main_container"
+    } else {
+        Screen.Login.route
+    }
     
     NavHost(
         navController = navController,
-        startDestination = Screen.Login.route
+        startDestination = startDestination
     ) {
         composable(Screen.Login.route) {
             LoginScreen(navController, authViewModel)

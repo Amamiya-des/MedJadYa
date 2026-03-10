@@ -15,6 +15,7 @@ class SharedPreferencesManager(context: Context) {
         private const val KEY_USER_EMAIL = "user_email"
         private const val KEY_ROLE = "role"
         private const val KEY_REMEMBER_USER = "remember_user"
+        private const val KEY_NOTIFICATIONS_ENABLED = "notifications_enabled"
     }
 
     fun saveLoginData(token: String, stdId: String, name: String, email: String) {
@@ -31,12 +32,24 @@ class SharedPreferencesManager(context: Context) {
         return preferences.getString(KEY_TOKEN, null)
     }
 
+    fun isLoggedIn(): Boolean {
+        return preferences.getBoolean(KEY_IS_LOGGED_IN, false)
+    }
+
     fun getSavedStdId(): String {
         return preferences.getString(KEY_STD_ID, "") ?: ""
     }
 
     fun getSavedEmail(): String {
         return preferences.getString(KEY_USER_EMAIL, "") ?: ""
+    }
+
+    fun setNotificationsEnabled(enabled: Boolean) {
+        preferences.edit().putBoolean(KEY_NOTIFICATIONS_ENABLED, enabled).apply()
+    }
+
+    fun areNotificationsEnabled(): Boolean {
+        return preferences.getBoolean(KEY_NOTIFICATIONS_ENABLED, true)
     }
 
     fun logout(rememberUser: Boolean) {

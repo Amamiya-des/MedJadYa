@@ -17,7 +17,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.medjadya.model.Medication
 import com.example.medjadya.model.TimeSlot
 import com.example.medjadya.viewmodel.MedicationViewModel
@@ -30,7 +29,7 @@ fun MedicationListScreen(
     viewModel: MedicationViewModel,
     onBack: () -> Unit
 ) {
-    val allMedications by viewModel.medications.collectAsState()
+    val medications by viewModel.medications.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val currentTime by viewModel.currentTime.collectAsState()
 
@@ -38,8 +37,8 @@ fun MedicationListScreen(
         viewModel.fetchMedications(showLoading = true)
     }
 
-    val medications = remember(allMedications, timeSlot) {
-        viewModel.getMedsForTimeSlot(timeSlot)
+    val filteredMedications = remember(medications, timeSlot) {
+        viewModel.getMedsForTimeSlot(timeSlot, medications)
     }
 
     val (title, backgroundColor) = when (timeSlot) {
@@ -47,6 +46,7 @@ fun MedicationListScreen(
         TimeSlot.LUNCH -> "มื้อเที่ยง" to Color(0xFFFFF5E6)
         TimeSlot.EVENING -> "มื้อเย็น" to Color(0xFFE6F7FF)
         TimeSlot.BEFORE_BED -> "ก่อนนอน" to Color(0xFFF0E6FF)
+        TimeSlot.HOURLY -> "รายชั่วโมง" to Color(0xFFFFFDE7)
     }
 
     Scaffold(
@@ -72,7 +72,7 @@ fun MedicationListScreen(
             .padding(padding)
             .background(backgroundColor)
         ) {
-            if (isLoading && medications.isEmpty()) {
+            if (isLoading && filteredMedications.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = Color(0xFF0097B2))
                 }
@@ -83,10 +83,10 @@ fun MedicationListScreen(
                         .padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    items(medications, key = { med -> med.id.toString() + med.schedules?.firstOrNull()?.let { it.time ?: it.hour } }) {
-                         medication ->
+                    items(filteredMedications, key = { med -> med.id.toString() + timeSlot.name }) { medication ->
                         MedicationListItem(
                             medication = medication,
+                            timeSlot = timeSlot,
                             currentTime = currentTime,
                             onTakeClick = { medication.id?.let { viewModel.takeMedicine(it) } },
                             onMissed = { medId -> viewModel.markAsMissed(medId) },
@@ -94,7 +94,7 @@ fun MedicationListScreen(
                         )
                     }
 
-                    if (medications.isEmpty()) {
+                    if (filteredMedications.isEmpty()) {
                         item {
                             Box(modifier = Modifier.fillMaxWidth().padding(top = 32.dp), contentAlignment = Alignment.Center) {
                                 Text("ไม่มีรายการยา", color = Color.Gray)
@@ -104,7 +104,7 @@ fun MedicationListScreen(
                 }
             }
 
-            if (isLoading && medications.isNotEmpty()) {
+            if (isLoading && filteredMedications.isNotEmpty()) {
                 LinearProgressIndicator(
                     modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter),
                     color = Color(0xFF0097B2),
@@ -118,20 +118,44 @@ fun MedicationListScreen(
 @Composable
 fun MedicationListItem(
     medication: Medication,
+    timeSlot: TimeSlot,
     currentTime: Long,
     onTakeClick: () -> Unit,
     onMissed: (Int) -> Unit,
     onAddExtraClick: () -> Unit
 ) {
-    val isTaken = medication.isTaken
-    val isMissedInStatus = medication.isMissedStatus
+    val isTakenInSlot = medication.isTakenInSlot(timeSlot)
+    
+    // Find the schedule time that matches the current time slot
+    val medTimeStr = remember(medication.schedules, timeSlot) {
+        medication.schedules?.find { schedule ->
+            if (timeSlot == TimeSlot.HOURLY) {
+                return@find schedule.type?.lowercase() == "hourly"
+            }
+            val timeStr = schedule.time ?: schedule.hour ?: return@find false
+            val hour = try {
+                timeStr.substringBefore(':').trim().toInt()
+            } catch (e: Exception) { -1 }
 
-    var isProcessingLocal by remember(medication.status, medication.id) { mutableStateOf(false) }
+            when (timeSlot) {
+                TimeSlot.MORNING -> hour in 5..10
+                TimeSlot.LUNCH -> hour in 11..14
+                TimeSlot.EVENING -> hour in 15..19
+                TimeSlot.BEFORE_BED -> hour in 20..23 || hour in 0..4
+                else -> false
+            }
+        }?.let { 
+            if (timeSlot == TimeSlot.HOURLY) {
+                it.hour?.take(5) ?: "ทุกๆ ${it.time ?: "?"} ชม."
+            } else {
+                it.time ?: it.hour
+            }
+        } ?: "--:--"
+    }
 
-    val medTimeStr = medication.schedules?.firstOrNull()?.let { it.time ?: it.hour } ?: "--:--"
-
-    val isOverdue = remember(isTaken, medication.status, medTimeStr, currentTime) {
-        if (isTaken) return@remember false
+    val isOverdue = remember(isTakenInSlot, medTimeStr, currentTime) {
+        if (isTakenInSlot) return@remember false
+        if (timeSlot == TimeSlot.HOURLY) return@remember false
 
         try {
             val parts = medTimeStr.substringBefore(':').trim().split(' ').last()
@@ -149,10 +173,10 @@ fun MedicationListItem(
         } catch (e: Exception) { false }
     }
 
-    val showAsMissed = !isTaken && (isMissedInStatus || isOverdue)
+    val showAsMissed = !isTakenInSlot && isOverdue
 
     LaunchedEffect(isOverdue) {
-        if (isOverdue && medication.status == null && medication.id != null) {
+        if (isOverdue && !isTakenInSlot && medication.id != null) {
             onMissed(medication.id)
         }
     }
@@ -169,7 +193,7 @@ fun MedicationListItem(
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = "${medTimeStr.take(5)} น.",
+                        text = if (timeSlot == TimeSlot.HOURLY) medTimeStr else "${medTimeStr.take(5)} น.",
                         fontSize = 14.sp,
                         color = if (showAsMissed) Color.Red else Color(0xFF0097B2),
                         fontWeight = FontWeight.Bold
@@ -181,29 +205,21 @@ fun MedicationListItem(
                 }
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(medication.name ?: "ไม่ระบุชื่อยา", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                Text("${medication.dosage ?: ""} ${medication.form ?: "เม็ด"}", fontSize = 14.sp, color = Color.Gray)
+                Text("${medication.instruction?.amount ?: ""} ${medication.form ?: "เม็ด"}", fontSize = 14.sp, color = Color.Gray)
                 Text(medication.instruction?.instructions ?: "ทานตามปกติ", fontSize = 14.sp, color = Color.Gray)
             }
 
             Button(
-                onClick = {
-                    isProcessingLocal = true
-                    onTakeClick()
-                },
-                enabled = !isTaken && !isProcessingLocal,
+                onClick = onTakeClick,
+                enabled = !isTakenInSlot,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = if (showAsMissed) Color.Red else Color(0xFF0097B2),
-                    disabledContainerColor = if (isTaken) Color(0xFFBDBDBD) else Color.LightGray
+                    disabledContainerColor = if (isTakenInSlot) Color(0xFFBDBDBD) else Color.LightGray
                 ),
                 shape = RoundedCornerShape(8.dp)
             ) {
                 Text(
-                    text = when {
-                        isTaken -> "ทานแล้ว"
-                        isProcessingLocal -> "กำลังบันทึก..."
-                        showAsMissed -> "ทานตอนนี้"
-                        else -> "ทานยา"
-                    },
+                    text = if (isTakenInSlot) "ทานแล้ว" else "ทานยา",
                     color = Color.White,
                     fontSize = 14.sp
                 )
@@ -211,14 +227,11 @@ fun MedicationListItem(
 
             if (medication.name?.contains("C", ignoreCase = true) == true) {
                 Spacer(modifier = Modifier.width(8.dp))
-                FloatingActionButton(
+                IconButton(
                     onClick = onAddExtraClick,
-                    modifier = Modifier.size(40.dp),
-                    containerColor = Color(0xFF0097B2),
-                    contentColor = Color.White,
-                    elevation = FloatingActionButtonDefaults.elevation(0.dp, 0.dp)
+                    modifier = Modifier.size(40.dp).background(Color(0xFF0097B2), RoundedCornerShape(8.dp))
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = "Add")
+                    Icon(Icons.Default.Add, contentDescription = "Add", tint = Color.White)
                 }
             }
         }

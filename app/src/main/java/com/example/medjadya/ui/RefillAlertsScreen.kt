@@ -21,21 +21,30 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.example.medjadya.model.Medication
+import com.example.medjadya.model.UpdateInstructionRequest
 import com.example.medjadya.network.RetrofitClient
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.supervisorScope
 
 enum class StockStatus { CRITICAL, LOW, OK }
 
 data class RefillItemUi(
-    val id: Int,
+    val medId: Int,
+    val instructionId: Int,
     val name: String,
+    val amount: String,
     val doseText: String,
     val remain: Int,
-    val total: Int
+    val total: Int,
+    val startDate: String?,
+    val stopDate: String?
 )
 
 fun stockStatus(remain: Int, total: Int): StockStatus {
-    val ratio = if (total > 0) remain.toFloat() / total.toFloat() else 1f
+    if (total <= 0) return StockStatus.OK
+    val ratio = remain.toFloat() / total.toFloat()
     return when {
         ratio <= 0.1f -> StockStatus.CRITICAL
         ratio <= 0.3f -> StockStatus.LOW
@@ -57,7 +66,22 @@ fun RefillAlertsScreen(nav: NavHostController) {
         try {
             val response = apiService.getAllMeds()
             if (response.isSuccessful) {
-                medications = response.body() ?: emptyList()
+                val meds = response.body() ?: emptyList()
+                
+                // Enrich medications with instructions to get remain/total values
+                medications = supervisorScope {
+                    meds.map { med ->
+                        async {
+                            try {
+                                val medId = med.id ?: return@async med
+                                val instructions = apiService.getInstructions(medId)
+                                med.copy(instruction = instructions.firstOrNull())
+                            } catch (e: Exception) {
+                                med
+                            }
+                        }
+                    }.awaitAll()
+                }
             }
         } catch (_: Exception) {
             Toast.makeText(ctx, "โหลดข้อมูลไม่สำเร็จ", Toast.LENGTH_SHORT).show()
@@ -69,13 +93,18 @@ fun RefillAlertsScreen(nav: NavHostController) {
         refreshData()
     }
 
-    val uiList = medications.map { med ->
+    val uiList = medications.mapNotNull { med ->
+        val inst = med.instruction ?: return@mapNotNull null
         RefillItemUi(
-            id = med.id ?: 0,
+            medId = med.id ?: 0,
+            instructionId = inst.idinstruction ?: 0,
             name = med.name ?: "ไม่ระบุชื่อยา",
-            doseText = med.instruction?.instructions ?: "",
-            remain = med.remainingCount ?: 0,
-            total = med.instruction?.quantity ?: 0
+            amount = inst.amount ?: "",
+            doseText = inst.instructions ?: "",
+            remain = inst.remain ?: 0,
+            total = inst.quantity ?: 0,
+            startDate = inst.start_date,
+            stopDate = inst.stop_date
         )
     }
 
@@ -89,8 +118,28 @@ fun RefillAlertsScreen(nav: NavHostController) {
             onBack = { nav.popBackStack() },
             onRefillClicked = { item ->
                 scope.launch {
-                    // Logic for refill can be added here if there's an API for it
-                    Toast.makeText(ctx, "เติมยาแล้ว (Mock)", Toast.LENGTH_SHORT).show()
+                    try {
+                        val response = apiService.updateInstruction(
+                            id = item.instructionId,
+                            request = UpdateInstructionRequest(
+                                amount = item.amount,
+                                instructions = item.doseText,
+                                quantity = item.total,
+                                remain = item.total,
+                                start_date = item.startDate,
+                                stop_date = item.stopDate,
+
+                            )
+                        )
+                        if (response.isSuccessful) {
+                            Toast.makeText(ctx, "เติมยาสำเร็จ", Toast.LENGTH_SHORT).show()
+                            refreshData()
+                        } else {
+                            Toast.makeText(ctx, "เติมยาไม่สำเร็จ", Toast.LENGTH_SHORT).show()
+                        }
+                    } catch (e: Exception) {
+                        Toast.makeText(ctx, "เกิดข้อผิดพลาด: ${e.message}", Toast.LENGTH_SHORT).show()
+                    }
                 }
             }
         )
@@ -144,10 +193,10 @@ fun RefillAlertScreenContent(
                     }
                 }
             } else {
-                items(refillNeededList) { med ->
+                items(refillNeededList) { item ->
                     RefillAlertCard(
-                        item = med,
-                        onRefillClicked = { onRefillClicked(med) }
+                        item = item,
+                        onRefillClicked = { onRefillClicked(item) }
                     )
                 }
             }

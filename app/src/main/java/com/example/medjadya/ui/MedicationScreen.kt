@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -34,15 +35,19 @@ import com.example.medjadya.model.Medication
 import com.example.medjadya.network.RetrofitClient
 import com.example.medjadya.notification.AlarmReceiver
 import kotlinx.coroutines.async
+import kotlinx.coroutines.launch
 import java.util.*
 
 @Composable
 fun MedicationScreen() {
     val context = LocalContext.current
-    val sharedPref = SharedPreferencesManager(context)
+    val coroutineScope = rememberCoroutineScope()
     var searchQuery by remember { mutableStateOf("") }
     var medications by remember { mutableStateOf<List<Medication>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
+    
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var medToDelete by remember { mutableStateOf<Medication?>(null) }
 
     // Launcher สำหรับขออนุญาตแจ้งเตือน (Android 13+)
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -53,6 +58,47 @@ fun MedicationScreen() {
         }
     }
 
+    val fetchMeds = {
+        coroutineScope.launch {
+            isLoading = true
+            try {
+                val apiService = RetrofitClient.getApiService(context)
+                val response = apiService.getAllMeds()
+                
+                if (response.isSuccessful) {
+                    val meds = response.body() ?: emptyList()
+                    
+                    val fullMedications = meds.map { med ->
+                        val medId = med.id ?: return@map med
+                        val instructions = async { apiService.getInstructions(medId) }
+                        val schedules = async { apiService.getSchedules(medId) }
+                        
+                        val resultMed = med.copy(
+                            instruction = instructions.await().firstOrNull(),
+                            schedules = schedules.await()
+                        )
+
+                        // ตั้งปลุกตามเวลาใน Database
+                        resultMed.schedules?.forEach { schedule ->
+                            schedule.time?.let { timeStr ->
+                                Log.d("MedicationScreen", "กำลังตั้งเวลาสำหรับ ${resultMed.name} ที่ $timeStr")
+                                scheduleAlarm(context, resultMed.name ?: "Unknown", timeStr)
+                            }
+                        }
+
+                        resultMed
+                    }
+                    
+                    medications = fullMedications
+                }
+            } catch (e: Exception) {
+                Log.e("MedicationScreen", "Error: ", e)
+            } finally {
+                isLoading = false
+            }
+        }
+    }
+
     LaunchedEffect(Unit) {
         // ขออนุญาตแจ้งเตือนเมื่อเปิดหน้านี้
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -60,42 +106,7 @@ fun MedicationScreen() {
                 permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
         }
-
-        try {
-            val apiService = RetrofitClient.getApiService(context)
-            val response = apiService.getAllMeds()
-            
-            if (response.isSuccessful) {
-                val meds = response.body() ?: emptyList()
-                
-                val fullMedications = meds.map { med ->
-                    val medId = med.id ?: return@map med
-                    val instructions = async { apiService.getInstructions(medId) }
-                    val schedules = async { apiService.getSchedules(medId) }
-                    
-                    val resultMed = med.copy(
-                        instruction = instructions.await().firstOrNull(),
-                        schedules = schedules.await()
-                    )
-
-                    // ตั้งปลุกตามเวลาใน Database
-                    resultMed.schedules?.forEach { schedule ->
-                        schedule.time?.let { timeStr ->
-                            Log.d("MedicationScreen", "กำลังตั้งเวลาสำหรับ ${resultMed.name} ที่ $timeStr")
-                            scheduleAlarm(context, resultMed.name ?: "Unknown", timeStr)
-                        }
-                    }
-
-                    resultMed
-                }
-                
-                medications = fullMedications
-            }
-        } catch (e: Exception) {
-            Log.e("MedicationScreen", "Error: ", e)
-        } finally {
-            isLoading = false
-        }
+        fetchMeds()
     }
 
     val filteredMedications = remember(searchQuery, medications) {
@@ -106,6 +117,45 @@ fun MedicationScreen() {
                 it.name?.contains(searchQuery, ignoreCase = true) == true
             }
         }
+    }
+
+    if (showDeleteDialog && medToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("ยืนยันการลบ") },
+            text = { Text("คุณต้องการลบยา \"${medToDelete?.name}\" ใช่หรือไม่?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val id = medToDelete?.id
+                        if (id != null) {
+                            coroutineScope.launch {
+                                try {
+                                    val apiService = RetrofitClient.getApiService(context)
+                                    val response = apiService.deleteMed(id)
+                                    if (response.isSuccessful) {
+                                        Toast.makeText(context, "ลบยาสำเร็จ", Toast.LENGTH_SHORT).show()
+                                        fetchMeds()
+                                    } else {
+                                        Toast.makeText(context, "ลบยาไม่สำเร็จ: ${response.message()}", Toast.LENGTH_SHORT).show()
+                                    }
+                                } catch (e: Exception) {
+                                    Toast.makeText(context, "เกิดข้อผิดพลาด: ${e.message}", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        }
+                        showDeleteDialog = false
+                    }
+                ) {
+                    Text("ลบ", color = Color.Red)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) {
+                    Text("ยกเลิก")
+                }
+            }
+        )
     }
 
     Column(
@@ -166,7 +216,13 @@ fun MedicationScreen() {
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 items(filteredMedications) { medication ->
-                    MedicationCard(medication)
+                    MedicationCard(
+                        medication = medication,
+                        onDeleteClick = {
+                            medToDelete = medication
+                            showDeleteDialog = true
+                        }
+                    )
                 }
             }
         }
@@ -220,7 +276,7 @@ private fun scheduleAlarm(context: Context, medName: String, timeStr: String) {
 }
 
 @Composable
-fun MedicationCard(medication: Medication) {
+fun MedicationCard(medication: Medication, onDeleteClick: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -240,7 +296,7 @@ fun MedicationCard(medication: Medication) {
             ) {
                 val form = medication.form?.lowercase() ?: ""
                 Text(
-                    text = if (form == "tablet") "💊" else "🧪",
+                    text = if (form == "tablet") "💊" else if (form == "injection") "💉" else if (form == "syrup") "🧪" else "🔴",
                     fontSize = 24.sp
                 )
             }
@@ -257,9 +313,9 @@ fun MedicationCard(medication: Medication) {
                         text = medication.name ?: "Unknown Medication",
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.Black
+                        color = Color.Black,
+                        modifier = Modifier.weight(1f)
                     )
-
                     val isRemaining = (medication.remainingCount ?: 0) > 0
                     Surface(
                         color = if (isRemaining) Color(0xFFE8F5E9) else Color(0xFFFFEBEE),
@@ -274,11 +330,26 @@ fun MedicationCard(medication: Medication) {
                     }
                 }
 
-                Text(
-                    text = medication.dosage ?: medication.form ?: "",
-                    color = Color.Gray,
-                    fontSize = 14.sp
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val form = medication.form?.lowercase() ?: ""
+                    Text(
+                        text = (medication.dosage ?: "") + " " + if (form == "tablet") "เม็ด" else if (form == "injection") "เข็ม" else if (form == "syrup") "ช้อนโต๊ะ" else "เม็ด",
+                        color = Color.Gray,
+                        fontSize = 14.sp
+                    )
+
+                    IconButton(onClick = onDeleteClick) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Delete",
+                            tint = Color.Red
+                        )
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -287,11 +358,18 @@ fun MedicationCard(medication: Medication) {
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     medication.schedules?.take(3)?.forEach { schedule ->
-                        val time = schedule.time
-                        val displayTime = if (time != null && time.contains(":")) {
-                            time.substringBeforeLast(":").removePrefix("0") + " น."
-                        } else {
-                            time ?: "--:--"
+                        val displayTime = when {
+                            schedule.time != null -> {
+                                val time = schedule.time
+                                if (time.contains(":")) {
+                                    time.substringBeforeLast(":").removePrefix("0") + " น."
+                                } else time
+                            }
+                            schedule.hour != null -> {
+                                val hourVal = schedule.hour.substringBefore(":").removePrefix("0")
+                                "ทุกๆ $hourVal ชม."
+                            }
+                            else -> "--:--"
                         }
 
                         Surface(
