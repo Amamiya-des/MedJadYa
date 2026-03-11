@@ -12,12 +12,13 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import java.text.SimpleDateFormat
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 import java.util.*
 
-class MedicationViewModel(context: Context) : ViewModel() {
+class MedicationViewModel(private val context: Context) : ViewModel() {
 
-    private val appContext = context.applicationContext
-    private val repository = MedicationRepository(appContext)
+    private val repository = MedicationRepository(context)
 
     private val _medications = MutableStateFlow<List<Medication>>(emptyList())
     val medications: StateFlow<List<Medication>> = _medications
@@ -79,9 +80,69 @@ class MedicationViewModel(context: Context) : ViewModel() {
                         }.awaitAll()
                     }
 
-                    _medications.value = enrichedMeds
+                    // --- Date filtering and auto-deletion logic ---
+                    val today = LocalDate.now()
+                    val activeMeds = mutableListOf<Medication>()
+
+                    enrichedMeds.forEach { med ->
+                        val instruction = med.instruction
+                        if (instruction != null) {
+                            val startDateStr = instruction.start_date
+                            val stopDateStr = instruction.stop_date
+
+                            try {
+                                // Extract date part if it contains time (e.g. 2026-03-04T17:00:00.000Z -> 2026-03-04)
+                                val cleanStart = startDateStr?.split("T")?.get(0)
+                                val cleanStop = stopDateStr?.split("T")?.get(0)
+
+                                val startDate =
+                                    if (cleanStart != null) LocalDate.parse(cleanStart) else null
+                                val stopDate =
+                                    if (cleanStop != null) LocalDate.parse(cleanStop) else null
+                                Log.d(
+                                    "MedicationVM",
+                                    "Checking ${med.name}: Today=$today, Start=$startDate, Stop=$stopDate"
+                                )
+                                when {
+                                    // 1. Delete if today has reached or passed stop date
+                                    stopDate != null && (today.isAfter(stopDate) || today.isEqual(
+                                        stopDate
+                                    )) -> {
+                                        Log.d(
+                                            "MedicationVM",
+                                            "Auto-deleting expired med: ${med.name} (Stop date: $stopDate reached)"
+                                        )
+                                        med.id?.let { deleteMedSilently(it) }
+                                    }
+                                    // 2. Only show if today is on or after start date
+                                    startDate != null && today.isBefore(startDate) -> {
+                                        Log.d(
+                                            "MedicationVM",
+                                            "Hiding med: ${med.name} (Start date: $startDate not yet reached)"
+                                        )
+                                    }
+                                    // 3. Otherwise, it's active
+                                    else -> {
+
+                                        Log.d("MedicationVM", "Showing: ${med.name} (Valid)")
+                                        activeMeds.add(med)
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                Log.e(
+                                    "MedicationVM",
+                                    "Error parsing dates for ${med.name}: ${e.message}"
+                                )
+                                activeMeds.add(med) // Fallback: show it if parsing fails
+                            }
+                        } else {
+                            activeMeds.add(med) // Med has no instructions, just show it
+                        }
+                    }
+
+                    _medications.value = activeMeds
                     medList.clear()
-                    medList.addAll(enrichedMeds)
+                    medList.addAll(activeMeds)
                 }
             } catch (e: Exception) {
                 if (e !is CancellationException) {
@@ -90,6 +151,14 @@ class MedicationViewModel(context: Context) : ViewModel() {
             } finally {
                 if (showLoading) _isLoading.value = false
             }
+        }
+    }
+
+    private suspend fun deleteMedSilently(id: Int) {
+        try {
+            repository.deleteMed(id)
+        } catch (e: Exception) {
+            Log.e("MedicationVM", "Failed to auto-delete med $id: ${e.message}")
         }
     }
 
@@ -148,11 +217,6 @@ class MedicationViewModel(context: Context) : ViewModel() {
 
                         val nextRemain = (current - dosage).coerceAtLeast(0)
 
-                        Log.d(
-                            "MedicationVM",
-                            "Stock Check for ${medication.name}: $current -> $nextRemain (Total: $total)"
-                        )
-
                         // 3. Update server
                         val update = UpdateInstructionRequest(
                             amount = latest.amount,
@@ -168,15 +232,9 @@ class MedicationViewModel(context: Context) : ViewModel() {
 
                             // 4. Trigger Refill Notification if status is LOW or CRITICAL
                             val status = getStockStatus(nextRemain, total)
-                            Log.d("MedicationVM", "Stock Status: $status")
-
                             if (status != StockStatus.OK) {
-                                Log.d(
-                                    "MedicationVM",
-                                    "Sending Refill Notification for ${medication.name}"
-                                )
                                 AlarmReceiver.sendRefillNotification(
-                                    appContext,
+                                    context,
                                     medication.name ?: "ยา"
                                 )
                             }
