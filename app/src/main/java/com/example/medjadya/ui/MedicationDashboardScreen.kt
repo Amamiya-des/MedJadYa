@@ -245,9 +245,9 @@ fun MedicationItemRow(
             }
 
             when (slot) {
-                TimeSlot.MORNING -> hour in 5..10
-                TimeSlot.LUNCH -> hour in 11..14
-                TimeSlot.EVENING -> hour in 15..19
+                TimeSlot.MORNING -> hour in 5..11
+                TimeSlot.LUNCH -> hour in 12..15
+                TimeSlot.EVENING -> hour in 16..19
                 TimeSlot.BEFORE_BED -> hour in 20..23 || hour in 0..4
                 else -> false
             }

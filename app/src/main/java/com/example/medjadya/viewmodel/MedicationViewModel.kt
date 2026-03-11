@@ -62,14 +62,17 @@ class MedicationViewModel(context: Context) : ViewModel() {
                                     val schedules = repository.getSchedules(medId)
                                     val logs = repository.getLogsByMedId(medId)
                                     val instructions = repository.getInstructions(medId)
-                                    
+
                                     med.copy(
-                                        schedules = schedules, 
+                                        schedules = schedules,
                                         logs = logs,
                                         instruction = instructions.firstOrNull()
                                     )
                                 } catch (e: Exception) {
-                                    Log.e("MedicationVM", "Error fetching data for ${med.id}: ${e.message}")
+                                    Log.e(
+                                        "MedicationVM",
+                                        "Error fetching data for ${med.id}: ${e.message}"
+                                    )
                                     med
                                 }
                             }
@@ -105,12 +108,14 @@ class MedicationViewModel(context: Context) : ViewModel() {
                     val timeStr = schedule.time ?: schedule.hour ?: return@any false
                     val hour = try {
                         timeStr.substringBefore(':').trim().toInt()
-                    } catch (e: Exception) { -1 }
+                    } catch (e: Exception) {
+                        -1
+                    }
 
                     when (slot) {
-                        TimeSlot.MORNING -> hour in 5..10
-                        TimeSlot.LUNCH -> hour in 11..14
-                        TimeSlot.EVENING -> hour in 15..19
+                        TimeSlot.MORNING -> hour in 5..11
+                        TimeSlot.LUNCH -> hour in 12..15
+                        TimeSlot.EVENING -> hour in 16..19
                         TimeSlot.BEFORE_BED -> hour in 20..23 || hour in 0..4
                         else -> false
                     }
@@ -129,20 +134,24 @@ class MedicationViewModel(context: Context) : ViewModel() {
                 // 1. Log dose
                 val currentTimeStr = dateFormat.format(Date())
                 val logRes = repository.logMedication(medId, "taken", currentTimeStr)
-                
+
                 if (logRes.isSuccessful) {
                     // 2. Fetch fresh stock data
-                    val latest = repository.getInstructions(medId).firstOrNull() ?: medication.instruction
-                    
+                    val latest =
+                        repository.getInstructions(medId).firstOrNull() ?: medication.instruction
+
                     if (latest != null) {
                         val current = latest.remain ?: 0
                         val total = latest.quantity ?: 1
                         val dosageStr = latest.amount ?: "0"
                         val dosage = dosageStr.filter { it.isDigit() }.toIntOrNull() ?: 1
-                        
+
                         val nextRemain = (current - dosage).coerceAtLeast(0)
-                        
-                        Log.d("MedicationVM", "Stock Check for ${medication.name}: $current -> $nextRemain (Total: $total)")
+
+                        Log.d(
+                            "MedicationVM",
+                            "Stock Check for ${medication.name}: $current -> $nextRemain (Total: $total)"
+                        )
 
                         // 3. Update server
                         val update = UpdateInstructionRequest(
@@ -153,17 +162,23 @@ class MedicationViewModel(context: Context) : ViewModel() {
                             start_date = latest.start_date,
                             stop_date = latest.stop_date
                         )
-                        
+
                         latest.idinstruction?.let { id ->
                             repository.updateInstruction(id, update)
-                            
+
                             // 4. Trigger Refill Notification if status is LOW or CRITICAL
                             val status = getStockStatus(nextRemain, total)
                             Log.d("MedicationVM", "Stock Status: $status")
-                            
+
                             if (status != StockStatus.OK) {
-                                Log.d("MedicationVM", "Sending Refill Notification for ${medication.name}")
-                                AlarmReceiver.sendRefillNotification(appContext, medication.name ?: "ยา")
+                                Log.d(
+                                    "MedicationVM",
+                                    "Sending Refill Notification for ${medication.name}"
+                                )
+                                AlarmReceiver.sendRefillNotification(
+                                    appContext,
+                                    medication.name ?: "ยา"
+                                )
                             }
                         }
                     }
@@ -208,7 +223,8 @@ class MedicationViewModel(context: Context) : ViewModel() {
                     if (medId == null) {
                         val all = repository.getAllMeds()
                         if (all.isSuccessful) {
-                            medId = all.body()?.filter { it.name == name }?.maxByOrNull { it.id ?: 0 }?.id
+                            medId = all.body()?.filter { it.name == name }
+                                ?.maxByOrNull { it.id ?: 0 }?.id
                         }
                     }
 
@@ -225,7 +241,12 @@ class MedicationViewModel(context: Context) : ViewModel() {
                         )
                         if (repository.insertInstruction(medId, inst).isSuccessful) {
                             scheduleItems.forEach { item ->
-                                val sched = ScheduleRequest(time = item.first, type = item.second, hour = item.third, medId = medId)
+                                val sched = ScheduleRequest(
+                                    time = item.first,
+                                    type = item.second,
+                                    hour = item.third,
+                                    medId = medId
+                                )
                                 repository.insertSchedule(medId, sched)
                             }
                             fetchMedications()
