@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Refresh
@@ -114,7 +113,7 @@ fun MedicationDashboardScreen(
                             onToggle = {
                                 expandedSlot = if (expandedSlot == title) null else title
                             },
-                            onTakeClick = { med -> med.id?.let { viewModel.takeMedicine(it) } },
+                            onTakeClick = { med -> viewModel.takeMedicine(med) },
                             onDetailClick = { navController.navigate("medication_list/${slot.name}") }
                         )
                     }

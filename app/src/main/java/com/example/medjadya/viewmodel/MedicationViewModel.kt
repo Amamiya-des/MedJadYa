@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.medjadya.data.repository.MedicationRepository
 import com.example.medjadya.model.*
+import com.example.medjadya.notification.AlarmReceiver
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -15,8 +16,9 @@ import java.util.*
 
 class MedicationViewModel(context: Context) : ViewModel() {
 
-    private val repository = MedicationRepository(context)
-    
+    private val appContext = context.applicationContext
+    private val repository = MedicationRepository(appContext)
+
     private val _medications = MutableStateFlow<List<Medication>>(emptyList())
     val medications: StateFlow<List<Medication>> = _medications
 
@@ -39,7 +41,7 @@ class MedicationViewModel(context: Context) : ViewModel() {
         viewModelScope.launch {
             while (true) {
                 _currentTime.value = System.currentTimeMillis()
-                delay(30000) 
+                delay(30000)
             }
         }
     }
@@ -51,7 +53,7 @@ class MedicationViewModel(context: Context) : ViewModel() {
                 val response = repository.getAllMeds()
                 if (response.isSuccessful) {
                     val meds = response.body() ?: emptyList()
-                    
+
                     val enrichedMeds = supervisorScope {
                         meds.map { med ->
                             async {
@@ -59,7 +61,13 @@ class MedicationViewModel(context: Context) : ViewModel() {
                                     val medId = med.id ?: return@async med
                                     val schedules = repository.getSchedules(medId)
                                     val logs = repository.getLogsByMedId(medId)
-                                    med.copy(schedules = schedules, logs = logs)
+                                    val instructions = repository.getInstructions(medId)
+                                    
+                                    med.copy(
+                                        schedules = schedules, 
+                                        logs = logs,
+                                        instruction = instructions.firstOrNull()
+                                    )
                                 } catch (e: Exception) {
                                     Log.e("MedicationVM", "Error fetching data for ${med.id}: ${e.message}")
                                     med
@@ -67,12 +75,10 @@ class MedicationViewModel(context: Context) : ViewModel() {
                             }
                         }.awaitAll()
                     }
-                    
+
                     _medications.value = enrichedMeds
                     medList.clear()
                     medList.addAll(enrichedMeds)
-                } else {
-                    Log.e("MedicationVM", "Fetch failed: ${response.code()}")
                 }
             } catch (e: Exception) {
                 if (e !is CancellationException) {
@@ -90,13 +96,13 @@ class MedicationViewModel(context: Context) : ViewModel() {
             schedules.any { schedule ->
                 val type = schedule.type?.lowercase()
                 val isHourly = type == "hourly" || (schedule.time == null && schedule.hour != null)
-                
+
                 if (slot == TimeSlot.HOURLY) {
                     return@any isHourly
                 } else {
                     if (isHourly) return@any false
-                    
-                    val timeStr = schedule.time ?: return@any false
+
+                    val timeStr = schedule.time ?: schedule.hour ?: return@any false
                     val hour = try {
                         timeStr.substringBefore(':').trim().toInt()
                     } catch (e: Exception) { -1 }
@@ -113,18 +119,58 @@ class MedicationViewModel(context: Context) : ViewModel() {
         }
     }
 
-    fun getMedsForTimeSlot(slot: TimeSlot): List<Medication> = getMedsForTimeSlot(slot, medications.value)
+    fun getMedsForTimeSlot(slot: TimeSlot): List<Medication> =
+        getMedsForTimeSlot(slot, medications.value)
 
-    fun takeMedicine(medId: Int) {
+    fun takeMedicine(medication: Medication) {
+        val medId = medication.id ?: return
         viewModelScope.launch {
             try {
+                // 1. Log dose
                 val currentTimeStr = dateFormat.format(Date())
-                val response = repository.logMedication(medId, "taken", currentTimeStr)
-                if (response.isSuccessful) {
-                    fetchMedications()
+                val logRes = repository.logMedication(medId, "taken", currentTimeStr)
+                
+                if (logRes.isSuccessful) {
+                    // 2. Fetch fresh stock data
+                    val latest = repository.getInstructions(medId).firstOrNull() ?: medication.instruction
+                    
+                    if (latest != null) {
+                        val current = latest.remain ?: 0
+                        val total = latest.quantity ?: 1
+                        val dosageStr = latest.amount ?: "0"
+                        val dosage = dosageStr.filter { it.isDigit() }.toIntOrNull() ?: 1
+                        
+                        val nextRemain = (current - dosage).coerceAtLeast(0)
+                        
+                        Log.d("MedicationVM", "Stock Check for ${medication.name}: $current -> $nextRemain (Total: $total)")
+
+                        // 3. Update server
+                        val update = UpdateInstructionRequest(
+                            amount = latest.amount,
+                            instructions = latest.instructions,
+                            quantity = latest.quantity,
+                            remain = nextRemain,
+                            start_date = latest.start_date,
+                            stop_date = latest.stop_date
+                        )
+                        
+                        latest.idinstruction?.let { id ->
+                            repository.updateInstruction(id, update)
+                            
+                            // 4. Trigger Refill Notification if status is LOW or CRITICAL
+                            val status = getStockStatus(nextRemain, total)
+                            Log.d("MedicationVM", "Stock Status: $status")
+                            
+                            if (status != StockStatus.OK) {
+                                Log.d("MedicationVM", "Sending Refill Notification for ${medication.name}")
+                                AlarmReceiver.sendRefillNotification(appContext, medication.name ?: "ยา")
+                            }
+                        }
+                    }
                 }
+                fetchMedications()
             } catch (e: Exception) {
-                Log.e("MedicationVM", "Error taking medicine: ${e.message}")
+                Log.e("MedicationVM", "Error in takeMedicine: ${e.message}")
             }
         }
     }
@@ -132,8 +178,7 @@ class MedicationViewModel(context: Context) : ViewModel() {
     fun markAsMissed(medId: Int) {
         viewModelScope.launch {
             try {
-                val response = repository.logMedication(medId, "missed", null)
-                if (response.isSuccessful) {
+                if (repository.logMedication(medId, "missed", null).isSuccessful) {
                     fetchMedications()
                 }
             } catch (e: Exception) {
@@ -155,63 +200,39 @@ class MedicationViewModel(context: Context) : ViewModel() {
     ) {
         viewModelScope.launch {
             try {
-                Log.d("MedicationVM", "Inserting med: $name")
                 val medResponse = repository.insertMed(MedRequest(name, medicineType))
-                
                 if (medResponse.isSuccessful) {
                     val body = medResponse.body()
                     var medId = body?.idmed ?: body?.data?.idmed
-                    
-                    Log.d("MedicationVM", "Extracted initial Med ID: $medId")
 
-                    // Fallback: If server didn't return ID, find the latest med with this name
                     if (medId == null) {
-                        Log.d("MedicationVM", "ID is null, trying fallback to find latest med named $name")
-                        val allMedsRes = repository.getAllMeds()
-                        if (allMedsRes.isSuccessful) {
-                            val latestMed = allMedsRes.body()
-                                ?.filter { it.name == name }
-                                ?.maxByOrNull { it.id ?: 0 }
-                            medId = latestMed?.id
-                            Log.d("MedicationVM", "Fallback found Med ID: $medId")
+                        val all = repository.getAllMeds()
+                        if (all.isSuccessful) {
+                            medId = all.body()?.filter { it.name == name }?.maxByOrNull { it.id ?: 0 }?.id
                         }
                     }
 
                     if (medId != null) {
-                        val instRequest = InstructionRequest(
+                        val inst = InstructionRequest(
                             amount = amount,
                             instructions = instructions,
                             start_date = startDate,
                             stop_date = stopDate,
                             quantity = quantity,
+                            remain = quantity,
                             form = medicineType,
                             medId = medId
                         )
-                        val instResponse = repository.insertInstruction(medId, instRequest)
-                        if (instResponse.isSuccessful) {
-                            var hasError = false
+                        if (repository.insertInstruction(medId, inst).isSuccessful) {
                             scheduleItems.forEach { item ->
-                                val schedRequest = ScheduleRequest(
-                                    time = item.first,
-                                    type = item.second,
-                                    hour = item.third,
-                                    medId = medId
-                                )
-                                if (!repository.insertSchedule(medId, schedRequest).isSuccessful) {
-                                    hasError = true
-                                }
+                                val sched = ScheduleRequest(time = item.first, type = item.second, hour = item.third, medId = medId)
+                                repository.insertSchedule(medId, sched)
                             }
                             fetchMedications()
-                            onComplete(true, if (hasError) "บันทึกสำเร็จ แต่อาจมีบางส่วนผิดพลาด" else "บันทึกสำเร็จ")
-                        } else {
-                            onComplete(false, "ล้มเหลวที่ตาราง Instruction")
-                        }
-                    } else {
-                        onComplete(false, "ไม่ได้รับ ID ยาจากเซิร์ฟเวอร์")
-                    }
-                } else {
-                    onComplete(false, "บันทึกยาหลักล้มเหลว")
-                }
+                            onComplete(true, "บันทึกสำเร็จ")
+                        } else onComplete(false, "ล้มเหลวที่ตาราง Instruction")
+                    } else onComplete(false, "ไม่ได้รับ ID ยา")
+                } else onComplete(false, "บันทึกยาหลักล้มเหลว")
             } catch (e: Exception) {
                 onComplete(false, "เกิดข้อผิดพลาด: ${e.message}")
             }
@@ -238,7 +259,7 @@ class MedicationViewModel(context: Context) : ViewModel() {
                 repository.logMedication(medId, "taken", currentTimeStr)
                 fetchMedications()
             } catch (e: Exception) {
-                Log.e("MedicationVM", "Error adding extra dose: ${e.message}")
+                Log.e("MedicationVM", "Error: ${e.message}")
             }
         }
     }

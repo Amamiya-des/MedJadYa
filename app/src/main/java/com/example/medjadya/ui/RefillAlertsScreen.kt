@@ -22,14 +22,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.example.medjadya.model.Medication
+import com.example.medjadya.model.StockStatus
 import com.example.medjadya.model.UpdateInstructionRequest
+import com.example.medjadya.model.getStockStatus
 import com.example.medjadya.network.RetrofitClient
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.supervisorScope
-
-enum class StockStatus { CRITICAL, LOW, OK }
 
 data class RefillItemUi(
     val medId: Int,
@@ -42,16 +42,6 @@ data class RefillItemUi(
     val startDate: String?,
     val stopDate: String?
 )
-
-fun stockStatus(remain: Int, total: Int): StockStatus {
-    if (total <= 0) return StockStatus.OK
-    val ratio = remain.toFloat() / total.toFloat()
-    return when {
-        ratio <= 0.1f -> StockStatus.CRITICAL
-        ratio <= 0.3f -> StockStatus.LOW
-        else -> StockStatus.OK
-    }
-}
 
 @Composable
 fun RefillAlertsScreen(nav: NavHostController) {
@@ -68,8 +58,6 @@ fun RefillAlertsScreen(nav: NavHostController) {
             val response = apiService.getAllMeds()
             if (response.isSuccessful) {
                 val meds = response.body() ?: emptyList()
-
-                // Enrich medications with instructions to get remain/total values
                 medications = supervisorScope {
                     meds.map { med ->
                         async {
@@ -77,9 +65,7 @@ fun RefillAlertsScreen(nav: NavHostController) {
                                 val medId = med.id ?: return@async med
                                 val instructions = apiService.getInstructions(medId)
                                 med.copy(instruction = instructions.firstOrNull())
-                            } catch (e: Exception) {
-                                med
-                            }
+                            } catch (e: Exception) { med }
                         }
                     }.awaitAll()
                 }
@@ -90,9 +76,7 @@ fun RefillAlertsScreen(nav: NavHostController) {
         loading = false
     }
 
-    LaunchedEffect(Unit) {
-        refreshData()
-    }
+    LaunchedEffect(Unit) { refreshData() }
 
     val uiList = medications.mapNotNull { med ->
         val inst = med.instruction ?: return@mapNotNull null
@@ -111,7 +95,7 @@ fun RefillAlertsScreen(nav: NavHostController) {
 
     if (loading) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(color = Color(0xFF12A8D6))
+            CircularProgressIndicator(color = Color(0xFF0097B2))
         }
     } else {
         RefillAlertScreenContent(
@@ -128,19 +112,15 @@ fun RefillAlertsScreen(nav: NavHostController) {
                                 quantity = item.total,
                                 remain = item.total,
                                 start_date = item.startDate,
-                                stop_date = item.stopDate,
-
-                                )
+                                stop_date = item.stopDate
+                            )
                         )
                         if (response.isSuccessful) {
                             Toast.makeText(ctx, "เติมยาสำเร็จ", Toast.LENGTH_SHORT).show()
                             refreshData()
-                        } else {
-                            Toast.makeText(ctx, "เติมยาไม่สำเร็จ", Toast.LENGTH_SHORT).show()
                         }
                     } catch (e: Exception) {
-                        Toast.makeText(ctx, "เกิดข้อผิดพลาด: ${e.message}", Toast.LENGTH_SHORT)
-                            .show()
+                        Toast.makeText(ctx, "เกิดข้อผิดพลาด: ${e.message}", Toast.LENGTH_SHORT).show()
                     }
                 }
             }
@@ -155,18 +135,12 @@ fun RefillAlertScreenContent(
     onBack: () -> Unit,
     onRefillClicked: (RefillItemUi) -> Unit
 ) {
-    val needRefillCount = items.count { stockStatus(it.remain, it.total) != StockStatus.OK }
+    val needRefillCount = items.count { getStockStatus(it.remain, it.total) != StockStatus.OK }
 
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = {
-                    Text(
-                        "แจ้งเตือนการเติมยา",
-                        fontSize = 26.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                },
+                title = { Text("การเติมยา", fontSize = 20.sp, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "back")
@@ -182,36 +156,23 @@ fun RefillAlertScreenContent(
         containerColor = Color(0xFFF0F7F9)
     ) { padding ->
         LazyColumn(
-            modifier = Modifier
-                .padding(padding)
-                .fillMaxSize(),
+            modifier = Modifier.padding(padding).fillMaxSize(),
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            item {
-                SummaryCard(needRefillCount = needRefillCount)
-            }
+            item { SummaryCard(needRefillCount = needRefillCount) }
 
-            val refillNeededList =
-                items.filter { stockStatus(it.remain, it.total) != StockStatus.OK }
+            val refillNeededList = items.filter { getStockStatus(it.remain, it.total) != StockStatus.OK }
 
             if (refillNeededList.isEmpty()) {
                 item {
-                    Box(
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(32.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
+                    Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
                         Text("ไม่มียาที่ต้องเติมในขณะนี้", color = Color.Gray)
                     }
                 }
             } else {
                 items(refillNeededList) { item ->
-                    RefillAlertCard(
-                        item = item,
-                        onRefillClicked = { onRefillClicked(item) }
-                    )
+                    RefillAlertCard(item = item, onRefillClicked = { onRefillClicked(item) })
                 }
             }
         }
@@ -220,134 +181,59 @@ fun RefillAlertScreenContent(
 
 @Composable
 private fun SummaryCard(needRefillCount: Int) {
-    val shape = RoundedCornerShape(16.dp)
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = shape,
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF2DE))
     ) {
-        Row(
-            modifier = Modifier
-                .padding(16.dp)
-                .fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFFFFD7A8)),
-                contentAlignment = Alignment.Center
-            ) {
+        Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Box(modifier = Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFFFFD7A8)), contentAlignment = Alignment.Center) {
                 Text("!", color = Color(0xFFE53935), fontWeight = FontWeight.Black)
             }
-
             Spacer(Modifier.width(12.dp))
-
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    "ยาจำนวน $needRefillCount รายการ\nต้องได้รับการเติม",
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    "อย่าปล่อยให้ยาของคุณหมด\nสั่งเติมยาล่วงหน้าเพื่อให้การรักษาเป็นไปตามแผน\nอย่างต่อเนื่อง",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFF6B6B6B)
-                )
+                Text("ยาจำนวน $needRefillCount รายการ ต้องได้รับการเติม", fontWeight = FontWeight.Bold)
             }
         }
     }
 }
 
 @Composable
-private fun RefillAlertCard(
-    item: RefillItemUi,
-    onRefillClicked: () -> Unit
-) {
+private fun RefillAlertCard(item: RefillItemUi, onRefillClicked: () -> Unit) {
     val shape = RoundedCornerShape(18.dp)
-    val status = stockStatus(item.remain, item.total)
-
+    val status = getStockStatus(item.remain, item.total)
     val borderColor = when (status) {
         StockStatus.CRITICAL -> Color(0xFFE53935)
         StockStatus.LOW -> Color(0xFFFF9800)
-        StockStatus.OK -> Color(0xFFFFB74D)
+        else -> Color.Transparent
     }
 
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(1.5.dp, borderColor, shape),
+        modifier = Modifier.fillMaxWidth().border(1.5.dp, borderColor, shape),
         shape = shape,
         colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(46.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0xFFF3F3F3)),
-                    contentAlignment = Alignment.Center
-                ) { Text("💊") }
-
+                Box(modifier = Modifier.size(46.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFFF3F3F3)), contentAlignment = Alignment.Center) { Text("💊") }
                 Spacer(Modifier.width(12.dp))
-
                 Column(modifier = Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(item.name, fontWeight = FontWeight.Bold)
                         Spacer(Modifier.width(8.dp))
-                        if (status != StockStatus.OK) StatusPill(status)
+                        StatusPill(status)
                     }
-                    Text(
-                        item.doseText,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFF555555)
-                    )
+                    Text(item.doseText, fontSize = 12.sp, color = Color.Gray)
                 }
             }
-
             Spacer(Modifier.height(12.dp))
-
-            Text(
-                "ปริมาณยาคงเหลือ: ${item.remain} / ${item.total} เม็ด",
-                fontWeight = FontWeight.SemiBold
-            )
-
+            Text("คงเหลือ: ${item.remain} / ${item.total} เม็ด", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
             Spacer(Modifier.height(8.dp))
-
-            val progress = if (item.total > 0)
-                (item.remain.toFloat() / item.total.toFloat()).coerceIn(0f, 1f)
-            else 0f
-
-            LinearProgressIndicator(
-                progress = { progress },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(8.dp)
-                    .clip(RoundedCornerShape(999.dp))
-            )
-
-            Spacer(Modifier.height(6.dp))
-
-            Text(
-                "เหลือใช้ได้อีกประมาณ ${estimateDays(item.remain)} วัน",
-                style = MaterialTheme.typography.bodySmall,
-                color = Color(0xFF6B6B6B)
-            )
-
+            val progress = if (item.total > 0) (item.remain.toFloat() / item.total.toFloat()).coerceIn(0f, 1f) else 0f
+            LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(999.dp)), color = borderColor)
             Spacer(Modifier.height(14.dp))
-
-            Button(
-                onClick = onRefillClicked,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1D67F2))
-            ) {
-                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.White)
-                Spacer(Modifier.width(8.dp))
-                Text("ทำเครื่องหมายว่าเติมยาแล้ว", color = Color.White)
+            Button(onClick = onRefillClicked, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1D67F2))) {
+                Text("เติมยาแล้ว", color = Color.White)
             }
         }
     }
@@ -358,28 +244,9 @@ private fun StatusPill(status: StockStatus) {
     val (bg, text) = when (status) {
         StockStatus.CRITICAL -> Color(0xFFE53935) to "ใกล้หมด"
         StockStatus.LOW -> Color(0xFFFF9800) to "เหลือน้อย"
-        StockStatus.OK -> Color.Transparent to ""
+        else -> return
     }
-
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(10.dp))
-            .background(bg)
-            .padding(horizontal = 10.dp, vertical = 4.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text,
-            color = Color.White,
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Bold
-        )
+    Box(modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(bg).padding(horizontal = 8.dp, vertical = 2.dp)) {
+        Text(text, color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
     }
-}
-
-private fun estimateDays(remain: Int): Int = when {
-    remain <= 0 -> 0
-    remain <= 5 -> 3
-    remain <= 12 -> 8
-    else -> 14
 }

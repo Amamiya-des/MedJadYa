@@ -28,6 +28,10 @@ class MedicationRepository(context: Context) {
         return api.insertSchedule(medId, request)
     }
 
+    suspend fun updateInstruction(id: Int, request: UpdateInstructionRequest): Response<Unit> {
+        return api.updateInstruction(id, request)
+    }
+
     suspend fun deleteMed(id: Int): Response<Unit> {
         return api.deleteMed(id)
     }

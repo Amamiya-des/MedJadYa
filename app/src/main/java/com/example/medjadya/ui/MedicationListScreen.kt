@@ -41,8 +41,6 @@ fun MedicationListScreen(
     val filteredMedications = remember(medications, timeSlot, targetMedName) {
         val baseList = viewModel.getMedsForTimeSlot(timeSlot, medications)
         if (!targetMedName.isNullOrEmpty()) {
-            // If we came from a notification, show the specific medication first or only
-            // For now, let's filter to only show the target med to make it very clear
             baseList.filter { it.name?.equals(targetMedName, ignoreCase = true) == true }
         } else {
             baseList
@@ -62,7 +60,6 @@ fun MedicationListScreen(
             .fillMaxSize()
             .background(Color(0xFFF0F7F9))
     ) {
-        // --- ส่วนที่ 1: Custom Header สูง 88.dp เท่ากับหน้าอื่นๆ ---
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -73,14 +70,9 @@ fun MedicationListScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(
-                        start = 8.dp,
-                        end = 16.dp,
-                        bottom = 10.dp
-                    ), // ปรับ padding ให้ไอคอน back ดูพอดี
+                    .padding(start = 8.dp, end = 16.dp, bottom = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // ปุ่ม Back
                 IconButton(onClick = onBack) {
                     Icon(
                         Icons.Default.ArrowBack,
@@ -89,16 +81,14 @@ fun MedicationListScreen(
                     )
                 }
 
-                // Title
                 Text(
                     text = if (targetMedName != null) "แจ้งเตือน: $targetMedName" else title,
-                    fontSize = 26.sp, // ปรับลงเล็กน้อยเพื่อให้ไม่เบียดกับปุ่ม back จนเกินไป
+                    fontSize = 26.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White,
                     modifier = Modifier.weight(1f)
                 )
 
-                // ปุ่ม Refresh
                 IconButton(onClick = { viewModel.fetchMedications(showLoading = true) }) {
                     Icon(
                         Icons.Default.Refresh,
@@ -131,7 +121,7 @@ fun MedicationListScreen(
                             medication = medication,
                             timeSlot = timeSlot,
                             currentTime = currentTime,
-                            onTakeClick = { medication.id?.let { viewModel.takeMedicine(it) } },
+                            onTakeClick = { viewModel.takeMedicine(medication) },
                             onMissed = { medId -> viewModel.markAsMissed(medId) },
                             onAddExtraClick = { viewModel.addExtraDose(medication.id) }
                         )
@@ -179,7 +169,6 @@ fun MedicationListItem(
 ) {
     val isTakenInSlot = medication.isTakenInSlot(timeSlot)
 
-    // Find the schedule time that matches the current time slot
     val medTimeStr = remember(medication.schedules, timeSlot) {
         medication.schedules?.find { schedule ->
             val type = schedule.type?.lowercase()

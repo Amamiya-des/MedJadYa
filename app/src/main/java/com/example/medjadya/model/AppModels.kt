@@ -3,10 +3,8 @@ package com.example.medjadya.model
 import com.google.gson.annotations.SerializedName
 import java.time.Instant
 import java.time.LocalDateTime
-import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
-import java.util.*
 
 // --- Auth Models ---
 data class LoginRequest(val email: String, val password: String)
@@ -16,7 +14,7 @@ data class AuthResponse(
     @SerializedName("message") val message: String?,
     @SerializedName("idUser") val idUser: Int?,
     @SerializedName("name") val name: String?,
-    @SerializedName("password") val password: String? // Added to support showing password directly
+    @SerializedName("password") val password: String?
 )
 
 // --- User Profile Models ---
@@ -30,29 +28,43 @@ data class UserData(
 // --- Medication Models ---
 enum class TimeSlot { MORNING, LUNCH, EVENING, BEFORE_BED, HOURLY }
 
+enum class StockStatus { CRITICAL, LOW, OK }
+
+fun getStockStatus(remain: Int?, total: Int?): StockStatus {
+    val r = remain ?: 0
+    val t = total ?: 0
+    if (t <= 0) return StockStatus.OK
+    val ratio = r.toFloat() / t.toFloat()
+    return when {
+        ratio <= 0.1f -> StockStatus.CRITICAL
+        ratio <= 0.3f -> StockStatus.LOW
+        else -> StockStatus.OK
+    }
+}
+
 data class Medication(
-    @SerializedName("idmed", alternate = ["id", "idMed", "idmeds", "med_id", "id_med"]) 
+    @SerializedName("idmed", alternate = ["id", "idMed", "idmeds", "med_id", "id_med"])
     val id: Int?,
     val name: String?,
     val form: String?,
     val instruction: Instruction?,
-    @SerializedName("schedules", alternate = ["Schedules"]) 
+    @SerializedName("schedules", alternate = ["Schedules"])
     val schedules: List<Schedule>? = emptyList(),
     val logs: List<MedLog>? = emptyList()
 ) {
     val dosage: String? get() = instruction?.amount
     val remainingCount: Int? get() = instruction?.remain
-    
+
     fun isTakenInSlot(slot: TimeSlot): Boolean {
         if (logs.isNullOrEmpty()) return false
-        
+
         val now = ZonedDateTime.now()
         val logsToday = logs.filter { log ->
             if (log.status != "taken") return@filter false
             val takenAtStr = log.taken ?: return@filter false
-            
+
             val logTimeLocal: ZonedDateTime = try {
-                Instant.parse(takenAtStr).atZone(now.zone) 
+                Instant.parse(takenAtStr).atZone(now.zone)
             } catch (e: Exception) {
                 try {
                     val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
@@ -65,18 +77,20 @@ data class Medication(
         }.sortedBy { it.taken }
 
         if (logsToday.isEmpty()) return false
-        if (slot == TimeSlot.HOURLY) return true 
+        if (slot == TimeSlot.HOURLY) return true
 
         val allSchedules = schedules?.filter { sched ->
             val type = sched.type?.lowercase()
             !(type == "hourly" || (sched.time == null && sched.hour != null))
         }?.sortedBy { it.time ?: it.hour ?: "00:00" } ?: emptyList()
-        
+
         val schedulesInSlot = allSchedules.filter { sched ->
             val timeStr = sched.time ?: sched.hour ?: return@filter false
             val hour = try {
                 timeStr.substringBefore(':').trim().toInt()
-            } catch (e: Exception) { -1 }
+            } catch (e: Exception) {
+                -1
+            }
 
             when (slot) {
                 TimeSlot.MORNING -> hour in 5..10
@@ -86,9 +100,9 @@ data class Medication(
                 else -> false
             }
         }
-        
+
         if (schedulesInSlot.isEmpty()) return false
-        
+
         return schedulesInSlot.any { targetSched ->
             val schedIndex = allSchedules.indexOf(targetSched)
             logsToday.size > schedIndex
@@ -103,8 +117,8 @@ data class Instruction(
     val instructions: String?,
     val quantity: Int?,
     val remain: Int?,
-    val start_date: String?,
-    val stop_date: String?
+    @SerializedName("start_date") val start_date: String?,
+    @SerializedName("stop_date") val stop_date: String?
 )
 
 data class Schedule(
@@ -138,23 +152,23 @@ data class MedIdData(
 )
 
 data class InstructionRequest(
-    val amount: String,
-    val instructions: String,
-    val start_date: String,
-    val stop_date: String,
-    val quantity: Int,
-    val form: String,
-    @SerializedName("med_idmed", alternate = ["medId", "med_id", "idmed", "id_med"])
-    val medId: Int? = null
+    @SerializedName("amount") val amount: String,
+    @SerializedName("instructions") val instructions: String,
+    @SerializedName("start_date") val start_date: String,
+    @SerializedName("stop_date") val stop_date: String,
+    @SerializedName("quantity") val quantity: Int,
+    @SerializedName("remain") val remain: Int,
+    @SerializedName("med_idmed") val medId: Int? = null,
+    val form: String
 )
 
 data class UpdateInstructionRequest(
-    val amount: String?,
-    val instructions: String?,
-    val quantity: Int?,
-    val remain: Int?,
-    val start_date: String?,
-    val stop_date: String?
+    @SerializedName("amount") val amount: String? = null,
+    @SerializedName("instructions") val instructions: String? = null,
+    @SerializedName("quantity") val quantity: Int? = null,
+    @SerializedName("remain") val remain: Int? = null,
+    @SerializedName("start_date") val start_date: String? = null,
+    @SerializedName("stop_date") val stop_date: String? = null
 )
 
 data class ScheduleRequest(
@@ -162,8 +176,7 @@ data class ScheduleRequest(
     val type: String?,
     val hour: String?,
     val day: String? = "Daily",
-    @SerializedName("med_idmed", alternate = ["medId", "med_id", "idmed", "id_med"])
-    val medId: Int? = null
+    @SerializedName("med_idmed") val medId: Int? = null
 )
 
 // --- Logs & Summaries ---
